@@ -1,0 +1,65 @@
+#include <idt/ig_high32.h>
+#include <idt/ig_low32.h>
+#include <idt/idt.h>
+#include <idt/interrupts.h>
+#include <stdint.h>
+#include <apic/apic.h>
+#include <apic/rtc.h>
+#include <apic/keyboard.h>
+
+//第一个保留项，不使用
+#define IDT_ENTRY_NUMS 256
+uint64_t _idt[IDT_ENTRY_NUMS];
+uint16_t _idt_limit = sizeof(_idt) - 1;
+
+void
+_set_idt_entry
+(uint32_t vector, uint16_t seg_selector, void (*isr)(), uint16_t idt_attr)
+{
+    uintptr_t offset = (uintptr_t)isr;
+    _idt[vector] = INTERRUPT_GATE_ISR_OFFSET_31_16(offset) | idt_attr;
+    _idt[vector] <<= 32;
+    _idt[vector] |= INTERRUPT_GATE_SEGMENT_SELECTOR(seg_selector) | INTERRUPT_GATE_ISR_OFFSET_0_15(offset);
+}
+
+
+void
+_init_idt()
+{
+    _set_idt_entry(INTERRUPT_DIVISION_EXCEPTION, SEGMENT_SELECTOR_CODE_R0, _asm_isr0, DEFAULT_IDT_ATTR);
+    _set_idt_entry(INTERRUPT_DEBUG_EXCEPTION, SEGMENT_SELECTOR_CODE_R0, _asm_isr1, DEFAULT_IDT_ATTR);
+    _set_idt_entry(INTERRUPT_NMI, SEGMENT_SELECTOR_CODE_R0, _asm_isr2, DEFAULT_IDT_ATTR);
+    _set_idt_entry(INTERRUPT_BREAKPOINT, SEGMENT_SELECTOR_CODE_R0, _asm_isr3, DEFAULT_IDT_ATTR);
+    _set_idt_entry(INTERRUPT_OVERFLOW, SEGMENT_SELECTOR_CODE_R0, _asm_isr4, DEFAULT_IDT_ATTR);
+    _set_idt_entry(INTERRUPT_BOUND_RANGE_EXCEEDED, SEGMENT_SELECTOR_CODE_R0, _asm_isr5, DEFAULT_IDT_ATTR);
+    _set_idt_entry(INTERRUPT_INVALID_OPCODE, SEGMENT_SELECTOR_CODE_R0, _asm_isr6, DEFAULT_IDT_ATTR);
+    _set_idt_entry(INTERRUPT_DEVICE_NOT_AVAILABLE, SEGMENT_SELECTOR_CODE_R0, _asm_isr7, DEFAULT_IDT_ATTR);
+    _set_idt_entry(INTERRUPT_DOUBLE_FAULT, SEGMENT_SELECTOR_CODE_R0, _asm_isr8, DEFAULT_IDT_ATTR);
+    // _set_idt_entry(INTERRUPT_COPROCESSOR_SEGMENT_OVERRUN, SEGMENT_SELECTOR_CODE_R0, _asm_isr9, DEFAULT_IDT_ATTR);
+    _set_idt_entry(INTERRUPT_INVALID_TSS, SEGMENT_SELECTOR_CODE_R0, _asm_isr10, DEFAULT_IDT_ATTR);
+    _set_idt_entry(INTERRUPT_SEGMENT_NOT_PRESENT, SEGMENT_SELECTOR_CODE_R0, _asm_isr11, DEFAULT_IDT_ATTR);
+    _set_idt_entry(INTERRUPT_STACK_SEGMENT_FAULT, SEGMENT_SELECTOR_CODE_R0, _asm_isr12, DEFAULT_IDT_ATTR);
+    _set_idt_entry(INTERRUPT_GENERAL_PROTECTION, SEGMENT_SELECTOR_CODE_R0, _asm_isr13, DEFAULT_IDT_ATTR);
+    _set_idt_entry(INTERRUPT_PAGE_FAULT, SEGMENT_SELECTOR_CODE_R0, _asm_isr14, DEFAULT_IDT_ATTR);
+    // _set_idt_entry(INTERRUPT_RESERVED, SEGMENT_SELECTOR_CODE_R0, _asm_isr15, DEFAULT_IDT_ATTR);
+    _set_idt_entry(INTERRUPT_FLOATING_POINT_ERROR, SEGMENT_SELECTOR_CODE_R0, _asm_isr16, DEFAULT_IDT_ATTR);
+    _set_idt_entry(INTERRUPT_ALIGNMENT_CHECK, SEGMENT_SELECTOR_CODE_R0, _asm_isr17, DEFAULT_IDT_ATTR);
+    _set_idt_entry(INTERRUPT_MACHINE_CHECK, SEGMENT_SELECTOR_CODE_R0, _asm_isr18, DEFAULT_IDT_ATTR);
+    _set_idt_entry(INTERRUPT_SIMD_FLOATING_POINT_EXCEPTION, SEGMENT_SELECTOR_CODE_R0, _asm_isr19, DEFAULT_IDT_ATTR);
+    _set_idt_entry(INTERRUPT_VIRTUALIZATION_EXCEPTION, SEGMENT_SELECTOR_CODE_R0, _asm_isr20, DEFAULT_IDT_ATTR);
+    _set_idt_entry(INTERRUPT_CONTROL_PROTECTION_EXCEPTION, SEGMENT_SELECTOR_CODE_R0, _asm_isr21, DEFAULT_IDT_ATTR);
+
+    _set_idt_entry(REDIRECT_ERROR_VECTOR, SEGMENT_SELECTOR_CODE_R0, _asm_isr250, DEFAULT_IDT_ATTR);
+    _set_idt_entry(REDIRECT_LINT0_VECTOR, SEGMENT_SELECTOR_CODE_R0, _asm_isr251, DEFAULT_IDT_ATTR);
+    _set_idt_entry(REDIRECT_SPIV_VECTOR,  SEGMENT_SELECTOR_CODE_R0, _asm_isr252, DEFAULT_IDT_ATTR);
+    _set_idt_entry(REDIRECT_APIC_TIMER_VECTOR, SEGMENT_SELECTOR_CODE_R0, _asm_isr253, DEFAULT_IDT_ATTR);
+    _set_idt_entry(PS2_KBD_REDIRECT_VECTOR,  SEGMENT_SELECTOR_CODE_R0, _asm_isr201, DEFAULT_IDT_ATTR);
+    _set_idt_entry(REDIRECT_RTC_TIMER_VECTOR,  SEGMENT_SELECTOR_CODE_R0, _asm_isr210, DEFAULT_IDT_ATTR);
+
+    // _set_idt_entry(APIC_ERROR_IV, SEGMENT_SELECTOR_CODE_R0, _asm_isr250, DEFAULT_IDT_ATTR);
+    // _set_idt_entry(APIC_LINT0_IV, SEGMENT_SELECTOR_CODE_R0, _asm_isr251, DEFAULT_IDT_ATTR);
+    // _set_idt_entry(APIC_SPIV_IV,  SEGMENT_SELECTOR_CODE_R0, _asm_isr252, DEFAULT_IDT_ATTR);
+    // _set_idt_entry(APIC_TIMER_IV, SEGMENT_SELECTOR_CODE_R0, _asm_isr253, DEFAULT_IDT_ATTR);
+    // _set_idt_entry(PC_KBD_IV,  SEGMENT_SELECTOR_CODE_R0, _asm_isr201, DEFAULT_IDT_ATTR);
+    // _set_idt_entry(RTC_TIMER_IV,  SEGMENT_SELECTOR_CODE_R0, _asm_isr210, DEFAULT_IDT_ATTR);
+}
