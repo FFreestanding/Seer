@@ -146,3 +146,37 @@ vmm_unmap_page(void* vpn)
     } 
 
 }
+
+void*
+vmm_alloc_pages(void* vpn, uint32_t directory_flags, uint32_t table_flags, uint32_t counts)
+{
+    void* pp = pmm_alloc_pages(counts);
+    if (pp == NULL_POINTER) {return NULL_POINTER;}
+
+    void *result = NULL_POINTER;
+
+    for (uint32_t i = 0; i < counts; ++i) {
+        void *p = NULL_POINTER;
+        if (i == 0)
+        {
+            result = vmm_map_page((uint32_t)vpn, (uint32_t)pp,
+                                  directory_flags, table_flags);
+            p = result;
+        } else {
+            p = vmm_map_page((uint32_t)vpn + (i<<12), (uint32_t)pp + (i<<12),
+                             directory_flags, table_flags);
+        }
+
+        if (!p) {
+            for (uint32_t j = 0; j < i; ++j) {
+                vmm_unmap_page(pp + j);
+            }
+            return NULL_POINTER;
+        }
+    }
+
+    pmm_mark_chunk_occupied(physical_memory_manager_instance_get(),
+                            ((uint32_t)pp) >> 12, counts);
+
+    return result;
+}

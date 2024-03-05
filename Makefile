@@ -18,7 +18,8 @@ AS := as
 LD := ld
 
 O := -O0
-W := -Wall -Wextra
+W := -w
+
 CFLAGS := -m32 -fno-pie -g -std=gnu99 -ffreestanding $(O) $(W)
 LDFLAGS := -m32 -z noexecstack -ffreestanding $(O) -nostdlib 
 SOURCE_FILES := $(shell find -name "*.[cS]")
@@ -46,22 +47,22 @@ $(BUILD_DIR)/$(OS_ISO): $(ISO_DIR) $(BIN_DIR)/$(OS_BIN) GRUB_TEMPLATE
 	@cp $(BIN_DIR)/$(OS_BIN) $(ISO_BOOT_DIR)
 	@grub-mkrescue -o $(BUILD_DIR)/$(OS_ISO) $(ISO_DIR)
 
-
-all: clean $(BUILD_DIR)/$(OS_ISO)
-all-debug: O := -O0
-all-debug: CFLAGS := -m32 -fno-pie -g -std=gnu99 -ffreestanding $(O) $(W)
-all-debug: LDFLAGS := -m32 -z noexecstack -ffreestanding $(O) -nostdlib 
 all-debug: clean $(BUILD_DIR)/$(OS_ISO)
-	@objdump -D $(BIN_DIR)/$(OS_BIN) > dump
 	
 clean:
 	@rm -rf $(BUILD_DIR)
-run: $(BUILD_DIR)/$(OS_ISO)
-	qemu-system-i386 -d cpu_reset -cdrom $(BUILD_DIR)/$(OS_ISO) -no-reboot -no-shutdown
+
+run: all-debug
+	@objcopy --only-keep-debug $(BIN_DIR)/$(OS_BIN) $(BUILD_DIR)/kernel.dbg
+	@qemu-system-i386 -d cpu_reset -cdrom build/Seer.iso \
+		-no-shutdown -no-reboot \
+		-drive id=disk,file="/home/ffreestanding/Desktop/ext2/ext2.img",if=none,format=raw \
+ 		-device ahci,id=ahci -device ide-hd,drive=disk,bus=ahci.0
 
 debug-qemu: all-debug
 	@objcopy --only-keep-debug $(BIN_DIR)/$(OS_BIN) $(BUILD_DIR)/kernel.dbg
-	@qemu-system-i386 -s -S -d cpu_reset -cdrom $(BUILD_DIR)/$(OS_ISO) -monitor telnet::45454,server,nowait  -no-shutdown -no-reboot &
-	@gnome-terminal -- telnet 127.0.0.1 45454
-	@qemu-system-i386 -s -S -kernel $(BIN_DIR)/$(OS_BIN) &
-	@gdb -s $(BUILD_DIR)/kernel.dbg -ex "target remote localhost:1234"
+	@qemu-system-i386 -S -gdb tcp::9889 -d cpu_reset -cdrom build/Seer.iso \
+		-no-shutdown -no-reboot \
+		-drive id=disk,file="/home/ffreestanding/Desktop/ext2/ext2.img",if=none,format=raw \
+ 		-device ahci,id=ahci -device ide-hd,drive=disk,bus=ahci.0 &
+	@gdb -s $(BUILD_DIR)/kernel.dbg -ex "target remote localhost:9889"

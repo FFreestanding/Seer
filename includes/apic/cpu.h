@@ -57,4 +57,18 @@ io_inb(int port)
     return data;
 }
 
+static inline void
+io_outl(int port, uint32_t data)
+{
+    asm volatile("outl %0, %w1" : : "a"(data), "d"(port));
+}
+
+static inline uint32_t
+io_inl(int port)
+{
+    uint32_t data;
+    asm volatile("inl %w1,%0" : "=a"(data) : "d"(port));
+    return data;
+}
+
 #endif // _CPU_H_

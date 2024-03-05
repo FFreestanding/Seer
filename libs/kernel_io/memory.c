@@ -105,6 +105,7 @@ kernel_log(const uint8_t log_type, const uint8_t* information, ...)
 		++information;
 	}
 	vga_putchar(log_vga, '\n');
+    tty_sync_cursor();
 }
 
 

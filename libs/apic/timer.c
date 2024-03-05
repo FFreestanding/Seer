@@ -67,7 +67,7 @@ uint8_t timer_run
 (uint32_t ticks, void (*task_caller)(void*), void* parameter_ptr, uint8_t task_is_periodic)
 {
     timer_task* timer = (timer_task*)kmalloc(sizeof(timer_task));
-    kernel_log(WARN, "timer run");
+    kernel_log(INFO, "timer run");
     if (!timer) {return 0;};
 
     timer->counter = timer->deadline = ticks;

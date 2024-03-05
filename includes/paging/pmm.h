@@ -36,4 +36,10 @@ pmm_alloc_page_entry();
 uint32_t
 pmm_find_page_entry(PM_Manager* p, uint32_t upper_limit);
 
+void*
+pmm_alloc_pages(uint32_t counts);
+
+uint32_t
+pmm_find_pages(PM_Manager* p, uint32_t upper_limit, uint32_t counts);
+
 #endif

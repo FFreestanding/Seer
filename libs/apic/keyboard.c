@@ -340,7 +340,7 @@ _ps2_controller_init()
     result = ps2_send_controller_cmd(0xaa);
     _assert(result==0x55, "Perform Controller Self Test ERROR");
     // Perform Interface Tests
-    kernel_log(INFO, "%h", ps2_send_controller_cmd(0xab));
+//    kernel_log(INFO, "%h", ps2_send_controller_cmd(0xab));
     _assert(ps2_send_controller_cmd(0xab)==0, "Perform Interface Tests ERROR");
 
     // Enable Keyboard

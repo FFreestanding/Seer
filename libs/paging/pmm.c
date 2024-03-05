@@ -1,7 +1,7 @@
 #include <paging/pmm.h>
 #include <data_structure/kernel_bitset.h>
 #include <paging/vmm.h>
-
+#include <kernel_io/heap.h>
 
 
 PM_Manager*
@@ -67,6 +67,15 @@ pmm_alloc_page_entry()
 }
 
 
+void*
+pmm_alloc_pages(uint32_t counts)
+{
+    PM_Manager* p = physical_memory_manager_instance_get();
+    uint32_t result = pmm_find_pages(p, p->max_page_numbers, counts);
+    return (void *)result;
+}
+
+
 // RETURN BITMAP index if found, else return 0
 uint32_t
 pmm_find_page_entry(PM_Manager* p, uint32_t upper_limit)
@@ -95,4 +104,31 @@ pmm_find_page_entry(PM_Manager* p, uint32_t upper_limit)
         return p->page_lookup_start + count;
     }
     
+}
+
+// RETURN BITMAP first index if found, else return 0
+uint32_t
+pmm_find_pages(PM_Manager* p, uint32_t upper_limit, uint32_t counts)
+{
+    uint32_t failed = 0;
+    if (counts == 0) {return 0;}
+    uint32_t *indexs = (uint32_t *) kmalloc(counts);
+    for (uint32_t i = 0; i < counts; ++i) {
+        indexs[i] = pmm_find_page_entry(p, upper_limit);
+        if (i > 0 && indexs[i]==indexs[i-1]+1)
+        {
+            continue;
+        }
+        else
+        {
+            indexs[0] = indexs[i];
+            i = 1;
+            ++failed;
+            if (failed == 1000)
+            {
+                return 0;
+            }
+        }
+    }
+    return indexs[0];
 }

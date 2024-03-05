@@ -8,14 +8,14 @@
 
 void 
 interrupt_handler(isr_param* param) {
+    static int i = 1;
     if (param->vector<=20)
     {
+        if (i==2) { while (1); }
         kernel_log(WARN, "param->vector: %u, param->eip: %h, error code: %h", param->vector, param->eip, param->err_code);
+        ++i;
         printstack(param->registers.ebp, param->eip);
-        // while (1)
-        // {
-        //     /* code */
-        // }
+        --i;
         
     }
 

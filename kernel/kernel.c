@@ -14,6 +14,10 @@
 #include <apic/ioapic.h>
 #include <common.h>
 #include <apic/keyboard.h>
+#include <device/pci/pci.h>
+#include <apic/timer.h>
+#include <kdebug/kernel_test.h>
+#include <device/sata/ahci.h>
 
 void
 _kernel_init_table()
@@ -94,14 +98,14 @@ _bitmap_init(multiboot_info_t* mb_info)
 
     // initialize kernel heap
     heap_manager_init(get_heap_manager_instance());
-    save_debug_info(mb_info->mods_addr);
+//    save_debug_info(mb_info->mods_addr);
     for (uint32_t i = 0; i < 3; i++)
     {
         vmm_unmap_page((void*)(i << 12));
     }
 
     // 锁定所有系统预留页（内存映射IO，ACPI之类的），并且进行1:1映射
-    multiboot_memory_map_t* mmaps = mb_info->mmap_addr;
+    multiboot_memory_map_t* mmaps = (multiboot_memory_map_t *) mb_info->mmap_addr;
     uint32_t map_size = mb_info->mmap_length / sizeof(multiboot_memory_map_t);
     for (unsigned int i = 0; i < map_size; i++) {
         multiboot_memory_map_t mmap = mmaps[i];
@@ -112,7 +116,8 @@ _bitmap_init(multiboot_info_t* mb_info)
         uint32_t pg_num = CEIL(mmap.len_low, 12);
         for (uint32_t j = 0; j < pg_num; j++)
         {
-            vmm_map_page((pa + (j << 12)), (pa + (j << 12)), DEFAULT_PAGE_FLAGS, DEFAULT_PAGE_FLAGS);
+            vmm_map_page((uint32_t) (pa + (j << 12)), (uint32_t) (pa + (j << 12)),
+                         DEFAULT_PAGE_FLAGS, DEFAULT_PAGE_FLAGS);
         }
     }
 
@@ -153,6 +158,18 @@ _bitmap_init(multiboot_info_t* mb_info)
 
     _ps2_controller_init();
     kernel_log(INFO, "ps2 controller init OVER");
+
+    init_pci_device_manager();
+
+    prob_pci_device();
+    kernel_log(INFO, "prob pci device OVER");
+
+    pci_set_up_msi();
+    kernel_log(INFO, "pci setup msi OVER");
+
+    ahci_device_init();
+
+    while (1);
 }
 
 void
@@ -161,21 +178,28 @@ _kernel_main()
     // 清除 __kernel_page_init 与前1MiB的映射
     // uint32_t __kernel_page_init_pg_count = ((uint32_t)(&__kernel_page_init_end)) >> 12;
 
-    // for (uint32_t i = 0; i < __kernel_page_init_pg_count; i++) 
+    // for (uint32_t i = 1; i < __kernel_page_init_pg_count; i++)
     // {
-    //     kernel_log(WARN, "%u", i);
-    //     vmm_unmap_page((void*)(i << 12));
+    // kernel_log(WARN, "%h", i);
+    // vmm_unmap_page((void*)(i << 12));
     // }
 
     vga_clear(get_vga_manager_instance());
-    char* logo =
-"\n       ____ ____ _  _ ____ _  _ _ _  _    ____ ____ \n"
-"       | __ |___ |\\ | [__  |__| | |\\ |    |  | [__  \n"
-"       |__] |___ | \\| ___] |  | | | \\|    |__| ___]\n";
-    kernel_log(INFO, "%s", logo);
+
     // test_heap_management();
     // test_interrupt();
-    // test_clocks();
-    tty_sync_cursor();
+    test_clocks();
+
+    char* logo =
+            " .oooooo..o oooooooooooo oooooooooooo ooooooooo.   \n"
+            "d8P'    `Y8 `888'     `8 `888'     `8 `888   `Y88. \n"
+            "Y88bo.       888          888          888   .d88' \n"
+            " `\"Y8888o.   888oooo8     888oooo8     888ooo88P'  \n"
+            "     `\"Y88b  888    \"     888    \"     888`88b.    \n"
+            "oo     .d8P  888       o  888       o  888  `88b.  \n"
+            "8\"\"88888P'  o888ooooood8 o888ooooood8 o888o  o888o \n"
+            "                                                   \n";
+    kernel_log(INFO, "%s", logo);
+
     while (1);
 }

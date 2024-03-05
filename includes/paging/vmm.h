@@ -18,5 +18,7 @@ vmm_alloc_page_entry(void* vpn, uint32_t directory_flags, uint32_t table_flags);
 void
 vmm_unmap_page(void* vpn);
 
+void*
+vmm_alloc_pages(void* vpn, uint32_t directory_flags, uint32_t table_flags, uint32_t counts);
 
 #endif
