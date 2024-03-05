@@ -53,7 +53,6 @@ clean:
 	@rm -rf $(BUILD_DIR)
 
 run: all-debug
-	@objcopy --only-keep-debug $(BIN_DIR)/$(OS_BIN) $(BUILD_DIR)/kernel.dbg
 	@qemu-system-i386 -d cpu_reset -cdrom build/Seer.iso \
 		-no-shutdown -no-reboot \
 		-drive id=disk,file="/home/ffreestanding/Desktop/ext2/ext2.img",if=none,format=raw \
