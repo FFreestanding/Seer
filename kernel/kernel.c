@@ -164,10 +164,13 @@ _bitmap_init(multiboot_info_t* mb_info)
     prob_pci_device();
     kernel_log(INFO, "prob pci device OVER");
 
-    pci_set_up_msi();
-    kernel_log(INFO, "pci setup msi OVER");
+//    pci_set_up_msi();
+//    kernel_log(INFO, "pci setup msi OVER");
+
+    show_all_pci_devices();
 
     ahci_device_init();
+    kernel_log(INFO, "ahci device init OVER");
 
     while (1);
 }

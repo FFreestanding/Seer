@@ -7,7 +7,7 @@ static struct pci_device_manager pci_dev_mgr;
 
 void init_pci_device_manager()
 {
-    pci_dev_mgr.pci_device_head = NULL;
+    llist_init_head(&pci_dev_mgr.pci_device_head);
 }
 
 struct pci_device_manager *get_pci_device_manager()
@@ -31,20 +31,12 @@ void prob_pci_device()
         }
         if (addr.bus == 255){break;}
     }
-    struct pci_address addr2 = {
-            .reversed = 0x80,
-            .bus = 0,
-            .dev = 31,
-            .function = 3,
-            .reg = 0
-    };
-    __prob_pci_device(&addr2);
 }
 
 void pci_set_up_msi()
 {
     struct pci_device *pos, *next;
-    llist_for_each(pos, next, &pci_dev_mgr.pci_device_head->other_pci_devices, other_pci_devices)
+    llist_for_each(pos, next, &pci_dev_mgr.pci_device_head, other_pci_devices)
     {
         __pci_set_up_msi(pos, MIS_IV);
     }
@@ -81,16 +73,6 @@ void __pci_set_up_msi(struct pci_device *device, int interrupt_vector)
 
 void __prob_pci_device(struct pci_address *addr)
 {
-    if (addr->dev == 3 && addr->function == 0)
-    {
-        kernel_log(WARN, "bus:%h dev:%h func:%h", addr->bus, addr->dev, addr->function);
-    }
-
-    if (addr->dev == 31 && addr->function == 3)
-    {
-        kernel_log(WARN, "bus:%h dev:%h func:%h", addr->bus, addr->dev, addr->function);
-    }
-
     uint16_t vendor_id = pci_read_vendor_id((const uint32_t *) addr);
     if (vendor_id == 0xffff)
     {
@@ -108,16 +90,8 @@ void __prob_pci_device(struct pci_address *addr)
     struct pci_device *dev = (struct pci_device *) kmalloc(sizeof(struct pci_device));
     dev->address = *addr;
     dev->capabilities_pointer = 0;
+    dev->class_code = pci_read_class_code(addr);
     llist_init_head(&dev->other_pci_devices);
 
-    if (pci_dev_mgr.pci_device_head == NULL)
-    {
-        pci_dev_mgr.pci_device_head = dev;
-    }
-    else
-    {
-        llist_append(&pci_dev_mgr.pci_device_head->other_pci_devices, &dev->other_pci_devices);
-    }
-
-    print_pci_dev_info(addr);
+    llist_append(&pci_dev_mgr.pci_device_head, &dev->other_pci_devices);
 }

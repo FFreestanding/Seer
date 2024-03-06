@@ -5,13 +5,14 @@
 
 #define _assert(return_code, information) if (!(return_code)){kernel_log(ERROR, information);asm volatile("int $1");}
 
-// Warning: The size must be divisible by 4
+// Warning: The length(byte size) parameter must be divided by 4
 void
 memory_copy_fast(uint32_t* source, uint32_t* destination, uint32_t length);
 
 void
 memory_copy(uint8_t* source, uint8_t* destination, uint32_t length);
 
+// Warning: The length(byte size) parameter must be divided by 4
 void
 memory_set_fast(uint32_t* source, uint32_t value, uint32_t length);
 

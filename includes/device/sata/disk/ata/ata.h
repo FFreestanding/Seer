@@ -1,0 +1,14 @@
+#ifndef SEER_ATA_H
+#define SEER_ATA_H
+
+#define ATA_SIGNATURE 0x00000101
+
+#define ATA_IDENTIFY_DEVICE 0xec
+#define ATA_IDENTIFY_PAKCET_DEVICE 0xa1
+#define ATA_PACKET 0xa0
+#define ATA_READ_DMA_EXT 0x25
+#define ATA_READ_DMA 0xc8
+#define ATA_WRITE_DMA_EXT 0x35
+#define ATA_WRITE_DMA 0xca
+
+#endif //SEER_ATA_H

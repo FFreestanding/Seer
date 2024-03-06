@@ -180,3 +180,31 @@ vmm_alloc_pages(void* vpn, uint32_t directory_flags, uint32_t table_flags, uint3
 
     return result;
 }
+
+void*
+vmm_map_pages(uint32_t virtual_address, uint32_t physical_address,
+              uint32_t directory_flags, uint32_t table_flags, uint32_t counts)
+{
+    void *p1 = NULL_POINTER;
+    void *p2 = NULL_POINTER;
+    for (uint32_t i = 0; i < counts; ++i) {
+        if (i==0)
+        {
+            p1 = vmm_map_page(virtual_address + (i<<12),
+                              physical_address + (i<<12),
+                              directory_flags, table_flags);
+        }
+        else
+        {
+            p2 = vmm_map_page(virtual_address + (i<<12),
+                              physical_address + (i<<12),
+                              directory_flags, table_flags);
+            if (p1==NULL_POINTER || p2==NULL_POINTER || p2!=(p1+(i<<12)))
+            {
+                return NULL_POINTER;
+            }
+        }
+    }
+
+    return (void *)p1;
+}
