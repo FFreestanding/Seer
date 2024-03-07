@@ -9,12 +9,13 @@
 #include <device/sata/disk/ata/ata.h>
 #include <device/sata/disk/atapi/scsi.h>
 
-static struct ahci_device *main_ahci_dev;
+static struct ahci_device_context ahci_dev_ctx;
 
-struct ahci_device *
-get_main_ahci_dev()
+
+struct ahci_device_context *
+get_ahci_device_context()
 {
-    return main_ahci_dev;
+    return &ahci_dev_ctx;
 }
 
 void
@@ -25,8 +26,6 @@ ahci_isr(isr_param* p)
 
 void ahci_device_init()
 {
-    main_ahci_dev = kmalloc(sizeof(struct ahci_device));
-
     struct pci_device_manager *pci_dev_mgr = get_pci_device_manager();
     struct pci_device *pos, *next;
 
@@ -40,6 +39,15 @@ void ahci_device_init()
         }
     }
 
+    uint32_t start = pci_read_bar6(&pos->address);
+    uint32_t size = ahci_sizing_addr_size(pos, start);
+    size = size / 0x1000;
+
+    if (0==(start && PCI_BAR_MMIO(start)))
+    {
+        kernel_log(ERROR, "BAR6 is not MMIO");
+    }
+
     uint16_t cmd = pci_read_command((uint32_t *)&pos->address);
     // 使用MSI 启用MMIO访问
     cmd |= (PCI_RCMD_MM_ACCESS | PCI_RCMD_DISABLE_INTR | PCI_RCMD_BUS_MASTER);
@@ -48,17 +56,14 @@ void ahci_device_init()
 
     interrupt_routine_subscribe(AHCI_IV, ahci_isr);
 
-    uint32_t start = pci_read_bar6(&pos->address);
-    uint32_t size = ahci_sizing_addr_size(pos)/0x1000;
-
-    struct ahci_registers *ahci_regs = vmm_map_page(0xc015d000, start,
-                  DEFAULT_PAGE_FLAGS,DEFAULT_PAGE_FLAGS);
+    struct ahci_registers *ahci_regs = vmm_map_pages(start, start,
+                                                    DEFAULT_PAGE_FLAGS, DEFAULT_PAGE_FLAGS, size+1);
 
     if (ahci_regs==NULL_POINTER) {
         kernel_log(ERROR, "Failed to map AHCI Register Space | Size:%h", size);
     }
 
-    main_ahci_dev->ahci_regs = ahci_regs;
+    ahci_dev_ctx.device.ahci_regs = ahci_regs;
 
     // Enable AHCI
     // AHCI Enable (AE): When set, indicates that
@@ -69,13 +74,12 @@ void ahci_device_init()
 
     uint32_t cap = ahci_regs->cap;
 
-    main_ahci_dev->port_num = (cap&0x1f)+1; // CAP.NP
-    main_ahci_dev->cmd_slots_num = (cap>>8)&0x1f; // CAP.NCS
-    main_ahci_dev->version = main_ahci_dev->ahci_regs->vs;
-    main_ahci_dev->port_bitmap = ahci_regs->pi;
+    ahci_dev_ctx.device.port_num = (cap&0x1f)+1; // CAP.NP
+    ahci_dev_ctx.device.cmd_slots_num = (cap>>8)&0x1f; // CAP.NCS
+    ahci_dev_ctx.device.version = ahci_dev_ctx.device.ahci_regs->vs;
+    ahci_dev_ctx.device.port_bitmap = ahci_regs->pi;
 
     config_per_port();
-
 }
 
 uint32_t ahci_sizing_addr_size(struct pci_device* device, uint32_t bar6)
@@ -108,7 +112,7 @@ uint32_t ahci_sizing_addr_size(struct pci_device* device, uint32_t bar6)
 
 void config_per_port()
 {
-    uint32_t bitmap = main_ahci_dev->port_bitmap;
+    uint32_t bitmap = ahci_dev_ctx.device.port_bitmap;
     uint32_t clb_pg_addr = 0, fis_pg_addr = 0;
     uint32_t clb_pa = 0, fis_pa = 0;
 
@@ -118,9 +122,10 @@ void config_per_port()
         if (!(bitmap & 0x1)) {
             continue;
         }
+        kernel_log(INFO, "port %u", i);
 
         // 获得每一个端口
-        struct ahci_port_registers *reg = &main_ahci_dev->ahci_regs->port[i];
+        struct ahci_port_registers *reg = &ahci_dev_ctx.device.ahci_regs->port[i];
 
         // 3.1 进行端口重置
         reset_port(reg);
@@ -129,23 +134,28 @@ void config_per_port()
         if (!clbp) {
             // 每页最多4个命令队列
             clb_pa = (uint32_t) pmm_alloc_page_entry();
-            clb_pg_addr = (uint32_t) vmm_alloc_page_entry((void *) 0x8000000,
+            clb_pg_addr = (uint32_t) vmm_map_page(clb_pa, clb_pa,
                                                           DEFAULT_PAGE_FLAGS,
                                                           DEFAULT_PAGE_FLAGS);
+            pmm_mark_chunk_occupied(physical_memory_manager_instance_get(), clb_pa>>12, 1);
             memory_set_fast((void*)clb_pg_addr, 0, 0x1000/4);
         }
         if (!fisp) {
             // 每页最多16个FIS
             fis_pa = (uint32_t) pmm_alloc_page_entry();
-            fis_pg_addr = (uint32_t) vmm_alloc_page_entry((void *) 0x9000000,
+            fis_pg_addr = (uint32_t) vmm_map_page(fis_pa,fis_pa,
                                                           DEFAULT_PAGE_FLAGS,
                                                           DEFAULT_PAGE_FLAGS);
+            pmm_mark_chunk_occupied(physical_memory_manager_instance_get(), fis_pa>>12, 1);
             memory_set_fast((void*)fis_pg_addr, 0, 0x1000/4);
         }
 
         /* 重定向CLB与FIS（设置寄存器） */
-        reg->pxclb = (struct command_list *) (clb_pa + clbp * HBA_CLB_SIZE);
+        reg->pxclb = (struct command_header *) (clb_pa + clbp * HBA_CLB_SIZE);
         reg->pxfb = fis_pa + fisp * HBA_FIS_SIZE;
+
+        /* 保存虚拟地址到context中 */
+        ahci_dev_ctx.dev_info.port_cmd_list[i] = (struct command_header *) (clb_pg_addr + clbp * HBA_CLB_SIZE);
 
         /* 初始化端口，并置于就绪状态 */
         reg->pxci = 0;
@@ -190,7 +200,6 @@ void reset_port(struct ahci_port_registers* port_reg)
     port_reg->pxsctl = (port_reg->pxsctl & ~0xf) | 1;
     io_delay(100000); // 等待至少一毫秒，差不多就行了
     port_reg->pxsctl &= ~0xf;
-
 }
 
 void probe_disk_info(struct ahci_port_registers* port_reg)
@@ -198,12 +207,16 @@ void probe_disk_info(struct ahci_port_registers* port_reg)
     port_reg->pxie &= ~HBA_MY_IE;
 
     uint16_t *data = (uint16_t *) kmalloc(512);
+    memory_set(data, 0, 512);
 
     struct command_table *table;
 
     int slot = ahci_prepare_cmd(port_reg, table);
 
-    struct command_header *hdr = &port_reg->pxclb->command[slot];
+    // 清空待响应的中断
+    port_reg->pxis = 0;
+
+    struct command_header *hdr = ahci_dev_ctx.dev_info.port_cmd_list[slot];
 
     hdr->prdt_len = 1;
     table->entries[0] = (struct prdte){
@@ -228,7 +241,7 @@ void probe_disk_info(struct ahci_port_registers* port_reg)
 
     struct ahci_device_info *info = kmalloc(sizeof(struct ahci_device_info));
     ahci_parse_dev_info(info, data);
-
+    kernel_log(INFO, "=======================");
     kernel_log(INFO, "model:%s serial_num:%s", info->model, info->serial_num);
     kernel_log(INFO, "=======================");
     while (1);
@@ -238,8 +251,8 @@ int __get_free_slot(struct ahci_port_registers* port_reg)
 {
     uint32_t bitmap = port_reg->pxsact | port_reg->pxci;
     int i = 0;
-    for (; i <= main_ahci_dev->cmd_slots_num && (bitmap & 0x1); i++, bitmap >>= 1);
-    if (i>main_ahci_dev->cmd_slots_num)
+    for (; i <= ahci_dev_ctx.device.cmd_slots_num && (bitmap & 0x1); i++, bitmap >>= 1);
+    if (i>ahci_dev_ctx.device.cmd_slots_num)
     {
         return -1;
     }
@@ -257,10 +270,12 @@ int ahci_prepare_cmd(struct ahci_port_registers* port_reg, struct command_table 
         kernel_log(ERROR, "no free slot");
     }
 
-    struct command_header *hdr = &port_reg->pxclb->command[slot];
+    struct command_header *hdr = ahci_dev_ctx.dev_info.port_cmd_list[slot];
+    memory_set(hdr, 0, sizeof(struct command_header));
+    kernel_log(INFO, "sizeof(struct command_header):%h", sizeof(struct command_header));
 
     table = (struct command_table *) kmalloc(sizeof(struct command_table));
-    memory_set(hdr, 0, sizeof(struct command_header));
+    memory_set(table, 0, sizeof(struct command_table));
 
     hdr->cmd_table_base = vaddr_to_paddr((uint32_t)table);
     hdr->options = HBA_CMDH_FIS_LEN(sizeof(struct sata_reg_fis)) | HBA_CMDH_CLR_BUSY;
@@ -272,17 +287,18 @@ int ahci_try_send(struct ahci_port_registers* port, int slot)
 {
     int num = 0;
 
-    while (port->pxtfd & (HBA_PxTFD_BSY | HBA_PxTFD_DRQ));
+    while ((port->pxtfd & (HBA_PxTFD_BSY | HBA_PxTFD_DRQ)) != 0);
 
     port->pxis = -1;
 
     while (num < 2) {
         port->pxci = 1 << slot;
 
-        wait_until_expire(!(port->pxci & 1 << slot), 1000000);
+        wait_until_expire(!(port->pxci & (1 << slot)), 1000000);
 
         port->pxci &= ~(1 << slot); // ensure CI bit is cleared
         if ((port->pxtfd & HBA_PxTFD_ERR)) {
+            kernel_log(ERROR, "ahci_try_send");
             num++;
         } else {
             break;

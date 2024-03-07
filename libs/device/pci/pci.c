@@ -55,7 +55,7 @@ void __pci_set_up_msi(struct pci_device *device, int interrupt_vector)
     while (cap_p) {
         device->address.reg = cap_p;
         uint32_t cap_hdr = pci_read_config_space((uint32_t *) &device->address);
-        if ((cap_p & 0xff) == 0x5) {
+        if ((cap_hdr & 0xff) == 0x5) {
             device->capabilities_pointer = cap_p;
             break;
         }

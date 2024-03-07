@@ -63,7 +63,7 @@ debug-qemu: all-debug
 	qemu-system-i386 -S -gdb tcp::9889 -d cpu_reset -cdrom build/Seer.iso \
 		-no-shutdown -no-reboot \
 		-monitor telnet:127.0.0.1:55555,server,nowait \
-		-drive id=disk,file="/home/ffreestanding/Desktop/ext2/ext2.img",if=none,format=raw \
+		-drive id=disk,file="/home/ffreestanding/Desktop/ext2/disk0.vdi",if=none,format=raw \
  		-device ahci,id=ahci -device ide-hd,drive=disk,bus=ahci.0 &\
  	sleep 0.1
 	gnome-terminal -- telnet 127.0.0.1 55555

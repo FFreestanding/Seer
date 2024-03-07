@@ -1,6 +1,7 @@
 #ifndef SEER_AHCI_H
 #define SEER_AHCI_H
 #include <stdint.h>
+#include <device/pci/pci.h>
 
 #define AHCI_DEVICE_CLASS_CODE 0x10601
 
@@ -66,12 +67,12 @@ struct command_header {
     uint32_t reserved[5];
 } __attribute__((packed));
 
-struct command_list {
-    struct command_header command[32];
-} __attribute__((packed));
+//struct command_list {
+//    struct command_header command[32];
+//} __attribute__((packed));
 
 struct ahci_port_registers {
-    struct command_list *pxclb;
+    struct command_header *pxclb;// physical address
     uint32_t pxclbu;
     uint32_t pxfb;
     uint32_t pxfbu;
@@ -130,12 +131,24 @@ struct ahci_device_info {
     uint32_t block_per_sec;
     uint32_t capabilities;
     uint8_t cbd_size;
+    struct command_header *port_cmd_list[32];
 };
 
+//struct ahci_port_info {
+//    struct command_list *cmdlist;
+//};
+
+struct ahci_device_context {
+    struct ahci_device_info dev_info;
+    struct ahci_device device;
+};
+
+struct ahci_device_context *
+get_ahci_device_context();
 
 void ahci_device_init();
 
-uint32_t ahci_sizing_addr_size();
+uint32_t ahci_sizing_addr_size(struct pci_device* device, uint32_t bar6);
 
 void config_per_port();
 

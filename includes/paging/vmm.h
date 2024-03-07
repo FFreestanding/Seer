@@ -2,6 +2,8 @@
 #define __VMM_H 1
 
 #include <stdint.h>
+#include "pte.h"
+#include "pde.h"
 /* Virtual Memory Manager */
 #define NULL 0
 #define NULL_POINTER 0
@@ -13,9 +15,10 @@
 static inline
 uint32_t vaddr_to_paddr(uint32_t vaddr)
 {
-    uint32_t dir_offset = vaddr>>22;
-    uint32_t table_offset = PAGE_OFFSET(vaddr);
-    return (0xFFC00000U | (dir_offset << 12) | (table_offset));
+    uint32_t page_directory_offset = PDE_INDEX(vaddr);
+    uint32_t* page_table_pointer = PAGE_TABLE_VIRTUAL_ADDRESS(page_directory_offset);
+    uint32_t page_table_offset = PTE_INDEX(vaddr);
+    return (*(page_table_pointer + page_table_offset) & (~0xfff)) + (vaddr&0xfff);
 }
 
 void*
