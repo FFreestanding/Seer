@@ -32,7 +32,6 @@ pmm_mark_chunk_available
 void*
 pmm_alloc_page_entry();
 
-
 uint32_t
 pmm_find_page_entry(PM_Manager* p, uint32_t upper_limit);
 

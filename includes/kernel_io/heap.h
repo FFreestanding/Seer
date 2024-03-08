@@ -36,7 +36,7 @@ heap_manager_init(heap_manager*);
 uint8_t
 heap_grow(heap_manager*);
 
-uint32_t*
+void *
 kmalloc(uint32_t size);
 
 uint8_t

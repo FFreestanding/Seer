@@ -60,7 +60,7 @@ kernel_log(const uint8_t log_type, const uint8_t* information, ...)
 		vga_set_theme(log_vga, VGA_COLOR_LIGHT_BROWN, VGA_COLOR_BLACK);
 		break;
 	case ERROR:
-		vga_set_theme(log_vga, VGA_COLOR_RED, VGA_COLOR_BLACK);
+		vga_set_theme(log_vga, VGA_COLOR_LIGHT_RED, VGA_COLOR_WHITE);
 		break;
 	}
 	va_list args;
