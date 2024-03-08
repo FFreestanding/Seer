@@ -37,7 +37,7 @@ heap_grow(heap_manager* hm)
     return 1;
 }
 
-uint32_t*
+void *
 kmalloc(uint32_t size)
 {
     uint32_t actual_size = ALIGN_8B_UP(size);

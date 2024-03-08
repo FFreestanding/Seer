@@ -18,12 +18,74 @@
 #include <apic/timer.h>
 #include <kdebug/kernel_test.h>
 #include <device/sata/ahci.h>
+#include <filesystem/ext2.h>
 
 void
 _kernel_init_table()
 {
     _init_gdt();
     _init_idt();
+}
+
+void logh(char *info, char *buff, uint32_t len)
+{
+    kernel_log(INFO, "----------[%s]----------", info);
+    for (uint32_t i = 0; i < len; i++)
+    {
+        kprintf("%h ", buff[i]);
+    }
+    kprintf("\n");
+    kernel_log(INFO, "------------------------");
+}
+
+void
+parse_ext2img()
+{
+    struct hba_port* port = ahci_get_port(0);
+
+    kernel_log(INFO, "super block size: %h", sizeof(struct ext2_superblock));
+    char *buffer = kmalloc(512);
+    memory_set(buffer, '3', 512);
+    int result;
+
+    result = port->device->ops.read_buffer(port, 2, buffer, port->device->block_size);
+    if (!result) {
+        kprintf("fail to read: %h\n", port->device->last_error);
+    }
+    parse_superblock(buffer);
+
+    kfree(buffer);
+}
+
+void
+parse_ext2img_tmp()
+{
+    struct hba_port* port = ahci_get_port(0);
+
+    char *buffer = kmalloc(512);
+    memory_set(buffer, '3', 512);
+    int result;
+
+    // 写入第一扇区 (LBA=0)
+    result =
+      port->device->ops.write_buffer(port, 0, buffer, port->device->block_size);
+    if (!result) {
+        kprintf("fail to write: %h\n", port->device->last_error);
+    }
+
+    memory_set(buffer, '6', port->device->block_size);
+
+    // 读出我们刚刚写的内容！
+    result =
+      port->device->ops.read_buffer(port, 0, buffer, port->device->block_size);
+    kprintf("%h, %h\n", port->regs[HBA_RPxIS], port->regs[HBA_RPxTFD]);
+    if (!result) {
+        kprintf("fail to read: %h\n", port->device->last_error);
+    } else {
+        kernel_log(INFO, "success: %s", buffer);
+    }
+
+    kfree(buffer);
 }
 
 void
@@ -159,18 +221,17 @@ _bitmap_init(multiboot_info_t* mb_info)
     _ps2_controller_init();
     kernel_log(INFO, "ps2 controller init OVER");
 
-    init_pci_device_manager();
-
-    prob_pci_device();
+    pci_init();
     kernel_log(INFO, "prob pci device OVER");
 
-//    pci_set_up_msi();
-//    kernel_log(INFO, "pci setup msi OVER");
-
-    show_all_pci_devices();
-
-    ahci_device_init();
+    ahci_init();
     kernel_log(INFO, "ahci device init OVER");
+
+    // ahci_list_device();
+
+    // pci_print_device();
+
+    parse_ext2img();
 
     while (1);
 }
