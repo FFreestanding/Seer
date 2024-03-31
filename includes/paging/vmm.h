@@ -21,19 +21,25 @@ uint32_t vaddr_to_paddr(uint32_t vaddr)
     return (*(page_table_pointer + page_table_offset) & (~0xfff)) + (vaddr&0xfff);
 }
 
-void*
-vmm_map_page(uint32_t virtual_address, uint32_t physical_address, uint32_t directory_flags, uint32_t table_flags);
+void *
+vmm_map_page(uint32_t virtual_address, uint32_t physical_address);
 
-void*
-vmm_alloc_page_entry(void* vpn, uint32_t directory_flags, uint32_t table_flags);
+void *
+vmm_map_pages(uint32_t virtual_address, uint32_t physical_address, uint32_t counts);
+
+void *
+__vmm_map_page(uint32_t virtual_address, uint32_t physical_address,
+               uint32_t directory_flags, uint32_t table_flags);
+
+
+void *
+vmm_alloc_page_entry();
 
 void
-vmm_unmap_page(void* vpn);
+vmm_unmap_page(uint32_t virtual_address);
 
-void*
-vmm_alloc_pages(void* vpn, uint32_t directory_flags, uint32_t table_flags, uint32_t counts);
+void *
+vmm_alloc_pages(uint32_t counts);
 
-void*
-vmm_map_pages(uint32_t virtual_address, uint32_t physical_address, uint32_t directory_flags, uint32_t table_flags, uint32_t counts);
 
 #endif

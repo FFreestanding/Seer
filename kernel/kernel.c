@@ -6,7 +6,7 @@
 #include <gdt/gdt.h>
 #include <idt/idt.h>
 #include <kernel_io/memory.h>
-#include <kernel_io/heap.h>
+#include <kernel_io/valloc.h>
 #include <apic/apic.h>
 #include <apic/acpi.h>
 #include <kdebug/kdebug.h>
@@ -19,6 +19,8 @@
 #include <kdebug/kernel_test.h>
 #include <device/sata/ahci.h>
 #include <filesystem/ext2.h>
+#include "kernel_io/cake_pile.h"
+#include "kernel_io/valloc.h"
 
 void
 _kernel_init_table()
@@ -27,84 +29,20 @@ _kernel_init_table()
     _init_idt();
 }
 
-void logh(char *info, char *buff, uint32_t len)
-{
-    kernel_log(INFO, "----------[%s]----------", info);
-    for (uint32_t i = 0; i < len; i++)
-    {
-        kprintf("%h ", buff[i]);
-    }
-    kprintf("\n");
-    kernel_log(INFO, "------------------------");
-}
-
-void
-parse_ext2img()
-{
-    struct hba_port* port = ahci_get_port(0);
-
-    kernel_log(INFO, "super block size: %h", sizeof(struct ext2_superblock));
-    char *buffer = kmalloc(512);
-    memory_set(buffer, '3', 512);
-    int result;
-
-    result = port->device->ops.read_buffer(port, 2, buffer, port->device->block_size);
-    if (!result) {
-        kprintf("fail to read: %h\n", port->device->last_error);
-    }
-    parse_superblock(buffer);
-
-    kfree(buffer);
-}
-
-void
-parse_ext2img_tmp()
-{
-    struct hba_port* port = ahci_get_port(0);
-
-    char *buffer = kmalloc(512);
-    memory_set(buffer, '3', 512);
-    int result;
-
-    // 写入第一扇区 (LBA=0)
-    result =
-      port->device->ops.write_buffer(port, 0, buffer, port->device->block_size);
-    if (!result) {
-        kprintf("fail to write: %h\n", port->device->last_error);
-    }
-
-    memory_set(buffer, '6', port->device->block_size);
-
-    // 读出我们刚刚写的内容！
-    result =
-      port->device->ops.read_buffer(port, 0, buffer, port->device->block_size);
-    kprintf("%h, %h\n", port->regs[HBA_RPxIS], port->regs[HBA_RPxTFD]);
-    if (!result) {
-        kprintf("fail to read: %h\n", port->device->last_error);
-    } else {
-        kernel_log(INFO, "success: %s", buffer);
-    }
-
-    kfree(buffer);
-}
-
 void
 _bitmap_init(multiboot_info_t* mb_info)
 {
     _interrupt_routine_init();
 
     multiboot_memory_map_t* memory_map_ptr = (multiboot_memory_map_t*)mb_info->mmap_addr;
-    PM_Manager* physical_memory_manager = physical_memory_manager_instance_get();
-    pmm_init(physical_memory_manager);
-    physical_memory_manager->max_page_numbers = ((mb_info->mem_upper << 10) + 0x100000) >> 12;
+    pmm_init(((mb_info->mem_upper << 10) + 0x100000) >> 12);
     
     for (uint32_t i = 0; i < (mb_info->mmap_length / sizeof(multiboot_memory_map_t)); i++)
     {
         if (memory_map_ptr[i].type == MULTIBOOT_MEMORY_AVAILABLE) {
             // 整数向上取整除法
-            pmm_mark_chunk_available(physical_memory_manager, 
-            (memory_map_ptr[i].addr_low + 0x0fffU) >> 12, 
-            memory_map_ptr[i].len_low >> 12);
+            pmm_mark_chunk_available((memory_map_ptr[i].addr_low + 0x0fffU) >> 12,
+                                     memory_map_ptr[i].len_low >> 12);
         }
     }
 
@@ -114,8 +52,7 @@ _bitmap_init(multiboot_info_t* mb_info)
     //     KERNEL_MAIN_ADDRESS_VIRTUAL_TO_PHYSICAL((uint32_t)&__kernel_start) >> 12, 
     //     KERNEL_MAIN_PAGE_COUNTS);
 
-    pmm_mark_chunk_occupied(physical_memory_manager, 0, 
-        (KERNEL_MAIN_ADDRESS_VIRTUAL_TO_PHYSICAL(&__kernel_end)+0xfff)>>12);
+    pmm_mark_chunk_occupied(0, (KERNEL_MAIN_ADDRESS_VIRTUAL_TO_PHYSICAL(&__kernel_end)+0xfff)>>12);
 
     /*
         Lunaixsky: 忘记转换成 ppn了？
@@ -124,9 +61,7 @@ _bitmap_init(multiboot_info_t* mb_info)
     //     VGA_START_POINTER, 
     //     VGA_BUFFER_SIZE);
 
-    pmm_mark_chunk_occupied(physical_memory_manager, 
-        VGA_START_POINTER >> 12, 
-        VGA_BUFFER_SIZE/(4*1024));
+    pmm_mark_chunk_occupied(VGA_START_POINTER >> 12, VGA_BUFFER_SIZE/(4*1024));
 
     for (uint32_t i = 0; i < (VGA_BUFFER_SIZE >> 12); i++)
     {
@@ -140,30 +75,21 @@ _bitmap_init(multiboot_info_t* mb_info)
         //     DEFAULT_PAGE_FLAGS
         // );
 
-        vmm_map_page(
-            VGA_VIRTUAL_ADDRESS + (i << 12), 
-            VGA_START_POINTER + (i << 12), 
-            DEFAULT_PAGE_FLAGS,
-            DEFAULT_PAGE_FLAGS
-        );
+        vmm_map_page(VGA_VIRTUAL_ADDRESS + (i << 12),
+                     VGA_START_POINTER + (i << 12));
     }
     VGA_Manager* v = get_vga_manager_instance();
 
     vga_manager_init(v);
 
     // initialize kernel stack
+    uint32_t stack_paddr = 0;
     for (uint32_t i = 0; i < (0x100000 >> 12); i++)
     {
-        vmm_alloc_page_entry((void*)((0xFFBFFFFFU - 0x100000 + 1) + (i << 12)), 
-                                DEFAULT_PAGE_FLAGS, DEFAULT_PAGE_FLAGS);
-    }
-
-    // initialize kernel heap
-    heap_manager_init(get_heap_manager_instance());
-//    save_debug_info(mb_info->mods_addr);
-    for (uint32_t i = 0; i < 3; i++)
-    {
-        vmm_unmap_page((void*)(i << 12));
+        stack_paddr = (uint32_t)pmm_alloc_page_entry();
+        ASSERT(vmm_map_page((0xFFBFFFFFU - 0x100000 + 1) + (i << 12), stack_paddr)
+                == ((0xFFBFFFFFU - 0x100000 + 1) + (i << 12)),
+               "initialize kernel stack");
     }
 
     // 锁定所有系统预留页（内存映射IO，ACPI之类的），并且进行1:1映射
@@ -174,37 +100,34 @@ _bitmap_init(multiboot_info_t* mb_info)
         if (mmap.type == MULTIBOOT_MEMORY_AVAILABLE) {
             continue;
         }
-        uint8_t* pa = mmap.addr_low & 0xFFFFF000UL;
+        uint8_t* pa = (uint8_t *) (mmap.addr_low & 0xFFFFF000UL);
         uint32_t pg_num = CEIL(mmap.len_low, 12);
         for (uint32_t j = 0; j < pg_num; j++)
         {
-            vmm_map_page((uint32_t) (pa + (j << 12)), (uint32_t) (pa + (j << 12)),
-                         DEFAULT_PAGE_FLAGS, DEFAULT_PAGE_FLAGS);
+            vmm_map_page((uint32_t) (pa + (j << 12)),
+                         (uint32_t) (pa + (j << 12)));
         }
     }
+
+    // initialize Cake allocator
+    cake_allocator_init();
+
+    valloc_init();
+    save_debug_info(mb_info->mods_addr);
 
     _acpi_init(mb_info);
     kernel_log(INFO, "acpi_init OVER");
 
     uint32_t ioapic_addr = get_acpi_context_instance()->ioapic->ioapic_address;
-    pmm_mark_chunk_occupied(physical_memory_manager, APIC_BASE_PHYSICAL_ADDRESS>>12, 1);
-    pmm_mark_chunk_occupied(physical_memory_manager, ioapic_addr>>12, 1);
 
-    _assert(
-        APIC_BASE_VIRTUAL_ADDRESS == vmm_map_page(APIC_BASE_VIRTUAL_ADDRESS, 
-                                                APIC_BASE_PHYSICAL_ADDRESS, 
-                                                DEFAULT_PAGE_FLAGS, 
-                                                DEFAULT_PAGE_FLAGS),
-            "APIC_BASE_VIRTUAL_ADDRESS MAP ERROR"
-    );
+    ASSERT(APIC_BASE_VIRTUAL_ADDRESS == vmm_map_page(APIC_BASE_VIRTUAL_ADDRESS,
+                                                APIC_BASE_PHYSICAL_ADDRESS),
+            "APIC_BASE_VIRTUAL_ADDRESS MAP ERROR");
 
     kernel_log(INFO, "ioapic address %h", ioapic_addr);
-    _assert(
-        IOAPIC_BASE_VIRTUAL_ADDRESS == vmm_map_page(IOAPIC_BASE_VIRTUAL_ADDRESS, 
-                                                    ioapic_addr, DEFAULT_PAGE_FLAGS, 
-                                                    DEFAULT_PAGE_FLAGS), 
-        "IOAPIC_BASE_VIRTUAL_ADDRESS MAP ERROR"
-    );
+    ASSERT(IOAPIC_BASE_VIRTUAL_ADDRESS == vmm_map_page(IOAPIC_BASE_VIRTUAL_ADDRESS,
+                                                       ioapic_addr),
+        "IOAPIC_BASE_VIRTUAL_ADDRESS MAP ERROR");
 
     _apic_init();
     kernel_log(INFO, "apic init OVER");
@@ -227,11 +150,11 @@ _bitmap_init(multiboot_info_t* mb_info)
     ahci_init();
     kernel_log(INFO, "ahci device init OVER");
 
-    // ahci_list_device();
+    ahci_list_device();
 
-    // pci_print_device();
+    pci_print_device();
 
-    parse_ext2img();
+    ext2_app();
 
     while (1);
 }

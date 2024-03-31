@@ -95,13 +95,13 @@ __scsi_buffer_io(struct hba_port* port,
             sata_read_error(port);
             retries++;
         } else {
-            kfree(table);
+            vfree(table);
             return 1;
         }
     }
 
     fail:
-    kfree(table);
+    vfree(table);
     return 0;
 }
 

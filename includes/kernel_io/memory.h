@@ -3,8 +3,6 @@
 #include <stdint.h>
 #include <kernel_io/vga.h>
 
-#define _assert(return_code, information) if (!(return_code)){kernel_log(ERROR, information);asm volatile("int $1");}
-
 // Warning: The length(byte size) parameter must be divided by 4
 void
 memory_copy_fast(uint32_t* source, uint32_t* destination, uint32_t length);

@@ -2,7 +2,7 @@
 #define _IOAPIC_H_
 #include <stdint.h>
 #include <apic/acpi.h>
-#define IOAPIC_BASE_VIRTUAL_ADDRESS 0x2000
+#define IOAPIC_BASE_VIRTUAL_ADDRESS 0x220000
 
 // https://pdos.csail.mit.edu/6.828/2018/readings/ia32/ioapic.pdf
 

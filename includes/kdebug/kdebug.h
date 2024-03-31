@@ -23,39 +23,39 @@ entry_size=
 6.if no found / return
 */
 
-// p need to point at the first byte of the entry
+// pm_mgr need to point at the first byte of the entry
 #define GET_FILENAME_LEN(p) (*(uint16_t*)(p))
 
-// p need to point at the first byte of the entry
+// pm_mgr need to point at the first byte of the entry
 #define POINT_AT_FILENAME(p) ((uint16_t*)(p) + 1)
 
-// p need to point at the first byte of the entry
+// pm_mgr need to point at the first byte of the entry
 #define GET_LINE_INFO_LEN_ADDRESS(p) ((uint32_t*)((uint8_t*)POINT_AT_FILENAME(p)+GET_FILENAME_LEN(p)))
 
-// p need to point at the first byte of the entry
+// pm_mgr need to point at the first byte of the entry
 #define GET_LINE_INFO_LEN(p) (*GET_LINE_INFO_LEN_ADDRESS(p))
 
 
-// p need to point at the first byte of the entry
+// pm_mgr need to point at the first byte of the entry
 #define GET_FIRST_LINE_INFO_ADDRESS(p) ((uint32_t*)GET_LINE_INFO_LEN_ADDRESS(p)+1)
 
 
-// p need to point at the first byte of the line_info
+// pm_mgr need to point at the first byte of the line_info
 #define GET_LINE_INFO_FUNCNAME_LEN(p) (*(uint16_t*)((uint8_t*)(p) + 16/8 + 32/8))
 
-// p need to point at the first byte of the line_info
+// pm_mgr need to point at the first byte of the line_info
 #define GET_LINE_INFO_FUNCNAME_ADDRESS(p) ((uint8_t*)(p) + 16/8 + 32/8 + 16/8)
 
-// p need to point at the first byte of the line_info
+// pm_mgr need to point at the first byte of the line_info
 #define GET_NEXT_LINE_INFO_ADDRESS(p) ((uint32_t)(GET_LINE_INFO_FUNCNAME_ADDRESS(p)+GET_LINE_INFO_FUNCNAME_LEN(p)))
 
-// p need to point at the first byte of the entry
+// pm_mgr need to point at the first byte of the entry
 #define GET_NEXT_ENTRY_ADDRESS(line_info_ptr) ((uint32_t*)GET_NEXT_LINE_INFO_ADDRESS(line_info_ptr))
 
-// p need to point at the first byte of the line_info
+// pm_mgr need to point at the first byte of the line_info
 #define GET_INSTRUCTION_ADDRESS(p) (*(uint32_t*)((uint16_t*)p+1))
 
-// p need to point at the first byte of the line_info
+// pm_mgr need to point at the first byte of the line_info
 #define GET_LINE_INFO_LINE_NUMBER(p) (*(uint16_t*)p)
 
 void

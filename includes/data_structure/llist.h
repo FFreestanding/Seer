@@ -94,4 +94,10 @@ llist_delete(struct llist_header* elem) {
         const typeof( ((type *)0)->member ) *__mptr = (ptr);	\
         (type *)( (char *)__mptr - offsetof(type,member) );})
 
+static inline int
+llist_empty(struct llist_header* elem)
+{
+    return elem->next == elem && elem->prev == elem;
+}
+
 #endif /* __LUNAIX_LLIST_H */

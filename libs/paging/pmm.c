@@ -1,63 +1,65 @@
 #include <paging/pmm.h>
 #include <data_structure/kernel_bitset.h>
 #include <paging/vmm.h>
-#include <kernel_io/heap.h>
+#include <kernel_io/valloc.h>
+#include "kernel_io/memory.h"
 
-
-PM_Manager*
-physical_memory_manager_instance_get()
-{
-    // static p->pm_bitmap[] initialize to 0(PAGE_OCCUPOED)
-    static PM_Manager p;
-    return &p;
-}
+static PM_Manager pm_mgr;
 
 void
-pmm_init(PM_Manager* physical_memory_manager)
+pmm_init(uint32_t max)
 {
-    physical_memory_manager->page_lookup_start = 0;
-    physical_memory_manager->max_page_numbers = 0;
+    pm_mgr.page_lookup_start = 1;
+    pm_mgr.max_page_index = max;
+    memory_set(pm_mgr.table, 0, sizeof(pm_mgr.table));
+    for (uint32_t i = 0; i < PM_TABLE_MAX_SIZE; ++i) {
+        pm_mgr.table[i].reference_counts = 1;
+    }
 }
 
 void
 pmm_mark_chunk_occupied
-(PM_Manager* p, uint32_t start_index, uint32_t page_count)
+(uint32_t start_index, uint32_t page_count)
 {
-    kbitset k = kernel_bitset_create(p->pm_bitmap, page_count);
-    kernel_bitset_unset_chunk(&k, start_index, page_count);
+    for (uint32_t i = 0; i < page_count; ++i) {
+        if (pm_mgr.table[start_index+i].reference_counts == 0xffffffff) { continue; }
+        ++pm_mgr.table[start_index+i].reference_counts;
+    }
 }
 
 void
 pmm_mark_chunk_available
-(PM_Manager* p, uint32_t start_index, uint32_t page_count)
+(uint32_t start_index, uint32_t page_count)
 {
-    kbitset k = kernel_bitset_create(p->pm_bitmap, page_count);
-    kernel_bitset_set_chunk(&k, start_index, page_count);
+    for (uint32_t i = 0; i < page_count; ++i) {
+        if (pm_mgr.table[start_index+i].reference_counts == 0) { continue; }
+        else { --pm_mgr.table[start_index+i].reference_counts; }
+    }
 }
 
-void*
+void *
 pmm_alloc_page_entry()
 {
-    PM_Manager* p = physical_memory_manager_instance_get();
     /*
         Lunaixsky: ???
     */
-    // pmm_init(p);
+    // pmm_init(pm_mgr);
     
-    uint32_t start_index = p->page_lookup_start;
+    uint32_t start_index = pm_mgr.page_lookup_start;
 
-    uint32_t result = pmm_find_page_entry(p, p->max_page_numbers);
+    void *result = pmm_find_page_entry(pm_mgr.max_page_index);
 
-    if (result!=NULL)
+    if (result!=NULL_POINTER)
     {
-        return (void*)(result<<12);
+        return result;
     }
     else
     {
-        uint32_t r = pmm_find_page_entry(p, start_index);
-        if (r!=NULL)
+        pm_mgr.page_lookup_start = 1;
+        void *r = pmm_find_page_entry(start_index);
+        if (r!=NULL_POINTER)
         {
-            return (void*)(r<<12);
+            return r;
         }
         else
         {
@@ -67,68 +69,33 @@ pmm_alloc_page_entry()
 }
 
 
-void*
-pmm_alloc_pages(uint32_t counts)
+void *
+pmm_alloc_pages(uint32_t page_num, uint32_t attr)
 {
-    PM_Manager* p = physical_memory_manager_instance_get();
-    uint32_t result = pmm_find_pages(p, p->max_page_numbers, counts);
-    return (void *)result;
+    uint32_t p1 = 1;
+    uint32_t p2 = 1;
+    while (p2 < pm_mgr.max_page_index && p2 - p1 < page_num) {
+        (pm_mgr.table[p2].reference_counts == 0) ? (p2++) : (p1 = ++p2);
+    }
+    if (p2 == pm_mgr.max_page_index && p2 - p1 < page_num) {
+        return NULL_POINTER;
+    }
+    pmm_mark_chunk_occupied(p1, page_num);
+    return (void *) (p1 << 12);
 }
 
 
 // RETURN BITMAP index if found, else return 0
-uint32_t
-pmm_find_page_entry(PM_Manager* p, uint32_t upper_limit)
+void *
+pmm_find_page_entry(uint32_t upper_limit)
 {
-    while (p->pm_bitmap[p->page_lookup_start >> 3] == 0x00
-        && p->page_lookup_start <= upper_limit)
-    {
-        p->page_lookup_start += 8-(p->page_lookup_start % 8);
-    }
-
-    if (p->page_lookup_start > upper_limit)
-    {
-        p->page_lookup_start = 0;
-        return NULL;
-    }
-    else
-    {
-        uint8_t b = p->pm_bitmap[p->page_lookup_start / 8];
-        uint8_t count = 0;
-        for (uint32_t i = 0; i < 8 && b != (b | 0x1) && b > 0; i++)
+    for (uint32_t i = pm_mgr.page_lookup_start; i < upper_limit; ++i) {
+        if (pm_mgr.table[i].reference_counts==0)
         {
-            ++count;
-            b >>= 1;
+            pm_mgr.page_lookup_start = i;
+            return (void *)(i<<12);
         }
-
-        return p->page_lookup_start + count;
     }
-    
+    return NULL_POINTER;
 }
 
-// RETURN BITMAP first index if found, else return 0
-uint32_t
-pmm_find_pages(PM_Manager* p, uint32_t upper_limit, uint32_t counts)
-{
-    uint32_t failed = 0;
-    if (counts == 0) {return 0;}
-    uint32_t *indexs = (uint32_t *) kmalloc(counts);
-    for (uint32_t i = 0; i < counts; ++i) {
-        indexs[i] = pmm_find_page_entry(p, upper_limit);
-        if (i > 0 && indexs[i]==indexs[i-1]+1)
-        {
-            continue;
-        }
-        else
-        {
-            indexs[0] = indexs[i];
-            i = 1;
-            ++failed;
-            if (failed == 1000)
-            {
-                return 0;
-            }
-        }
-    }
-    return indexs[0];
-}

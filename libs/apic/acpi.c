@@ -1,13 +1,15 @@
 #include <apic/acpi.h>
 #include <stdint.h>
 #include <kernel_io/memory.h>
+#include <kernel_io/valloc.h>
+#include "common.h"
 
 void 
 _acpi_init(multiboot_info_t* mb_info)
 {
     acpi_rsdp_t* rsdp = acpi_locate_rsdp(mb_info);
 
-    _assert(rsdp && acpi_rsdp_validate(rsdp), "RSDP address invalid");
+    ASSERT(rsdp && acpi_rsdp_validate(rsdp), "RSDP address invalid");
 
     kernel_log(INFO, "RSDP found at %h, RSDT: %h", rsdp, rsdp->rsdt);
     acpi_context* ctx = get_acpi_context_instance();
@@ -53,7 +55,7 @@ acpi_locate_rsdp(multiboot_info_t* mb_info)
     // why mem_start += 16 ?
     // OSPM finds the Root System Description Pointer (RSDP) structure by searching physical memory ranges on 16-byte boundaries
     // https://uefi.org/htmlspecs/ACPI_Spec_6_4_html/05_ACPI_Software_Programming_Model/ACPI_Software_Programming_Model.html#finding-the-rsdp-on-ia-pc-systems
-    for (uint8_t* mem_start = 0x4000; mem_start < 0x100000; mem_start += 16)
+    for (uint8_t* mem_start = (uint8_t*)0x4000; mem_start < 0x100000; mem_start += 16)
     {
         if (*((uint32_t*)(mem_start)) == ACPI_RSDP_SIG_L)
         {
@@ -91,7 +93,7 @@ madt_parse(acpi_madt_t* madt, acpi_context* toc)
     uint8_t* ics_start = (uint8_t*)((uintptr_t)madt + sizeof(acpi_madt_t));
     uintptr_t ics_end = (uintptr_t)madt + madt->header.length;
 
-    toc->irq = (acpi_isos_t*)kmalloc(24*sizeof(acpi_isos_t*));
+    toc->irq = (acpi_isos_t*)valloc(24*sizeof(acpi_isos_t*));
     memory_set_fast(toc->irq, 0, 24*sizeof(acpi_isos_t*)/4);
     uint32_t so_idx = 0;
     while (ics_start < ics_end)
@@ -100,15 +102,21 @@ madt_parse(acpi_madt_t* madt, acpi_context* toc)
         switch (entry->type)
         {
             case ACPI_MADT_LAPIC:
+            {
                 toc->lapic = (acpi_lapic_t*)entry;
                 break;
+            }
             case ACPI_MADT_IOAPIC:
+            {
                 toc->ioapic = (acpi_ioapic_t*)entry;
                 break;
+            }
             case ACPI_MADT_INTSO:
+            {
                 acpi_isos_t* intso_tbl = (acpi_isos_t*)entry;
                 toc->irq[intso_tbl->source] = intso_tbl;
                 break;
+            }
             default:
                 break;
         }

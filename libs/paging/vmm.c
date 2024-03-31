@@ -5,9 +5,44 @@
 #include <kernel_io/memory.h>
 #include <paging/pmm.h>
 #include <apic/cpu.h>
+#include "common.h"
+
+void *
+vmm_map_page(uint32_t virtual_address, uint32_t physical_address)
+{
+    void *p = __vmm_map_page(virtual_address, physical_address,
+                   DEFAULT_PAGE_FLAGS, DEFAULT_PAGE_FLAGS);
+    if (p!=NULL_POINTER)
+    {
+        pmm_mark_chunk_occupied(physical_address>>12, 1);
+    }
+    return p;
+}
+
+void *
+vmm_map_pages(uint32_t virtual_address, uint32_t physical_address, uint32_t counts)
+{
+    uint32_t addr1 = 0x1;
+    uint32_t addr2 = 0x1;
+    for (uint32_t i = 0; i < counts; ++i) {
+        if (addr1 == 0x1) {
+            addr1 = (uint32_t) vmm_map_page(virtual_address, physical_address);
+            continue;
+        }
+        addr2 = (uint32_t) vmm_map_page(virtual_address + (i * 0x1000),
+                                        physical_address + (i * 0x1000));
+        if ((addr1+i*0x1000)==addr2) {
+            continue;
+        } else {
+            return NULL_POINTER;
+        }
+    }
+    return (void *) addr1;
+}
 
 void*
-vmm_map_page(uint32_t virtual_address, uint32_t physical_address, uint32_t directory_flags, uint32_t table_flags)
+__vmm_map_page(uint32_t virtual_address, uint32_t physical_address,
+               uint32_t directory_flags, uint32_t table_flags)
 {
     if ((virtual_address == NULL_POINTER) || (physical_address == NULL_POINTER))
     {
@@ -68,7 +103,7 @@ vmm_map_page(uint32_t virtual_address, uint32_t physical_address, uint32_t direc
     
     // 页目录有空位，需要开辟一个新的 PDE
     uint8_t* new_pt_pa = pmm_alloc_page_entry();
-    pmm_mark_chunk_occupied(physical_memory_manager_instance_get(), ((uint32_t)new_pt_pa) >> 12, 1);
+    pmm_mark_chunk_occupied(((uint32_t)new_pt_pa) >> 12, 1);
 
     // 物理内存已满！
     if (!new_pt_pa) {
@@ -111,100 +146,39 @@ vmm_map_page(uint32_t virtual_address, uint32_t physical_address, uint32_t direc
                     directory_flags);
 
     return (void*)VIRTUAL_ADDRESS(page_directory_offset, page_table_offset, PAGE_OFFSET(virtual_address));
-    
 }
 
-void*
-vmm_alloc_page_entry(void* vpn, uint32_t directory_flags, uint32_t table_flags)
+void *
+vmm_alloc_page_entry()
 {
-    void* pp = pmm_alloc_page_entry();
-    pmm_mark_chunk_occupied(physical_memory_manager_instance_get(), ((uint32_t)pp) >> 12, 1);
-    void* result = vmm_map_page((uint32_t)vpn, (uint32_t)pp, directory_flags, table_flags);
-    if (!result) {
+    uint32_t pp = (uint32_t)pmm_alloc_page_entry();
+    void *result = vmm_map_page(pp, pp);
+    if (result==NULL_POINTER) {
         vmm_unmap_page(pp);
         return NULL_POINTER;
     }
-    
+    pmm_mark_chunk_occupied(pp >> 12, 1);
     return result;
 }
 
 void
-vmm_unmap_page(void* vpn)
+vmm_unmap_page(uint32_t virtual_address)
 {
-    if (((uint32_t)vpn & 0xFFF) != 0)
-    {
-        return;
-    }
-    uint32_t* page_table_ptr = (uint32_t*)((uint32_t)PAGE_TABLE_VIRTUAL_ADDRESS(PDE_INDEX((uint32_t)vpn)) & 0xfffff000);
-    // (uint32_t*)(*(uint32_t*)(PAGE_DIRECTORY_VIRTUAL_ADDRESS + (PDE_INDEX((uint32_t)vpn) >> 22)) & 0xfffff000);
-    // uint32_t* page_directory_ptr =  PAGE_DIRECTORY_VIRTUAL_ADDRESS(PTE_INDEX((uint32_t)vpn));
-    pmm_mark_chunk_available(physical_memory_manager_instance_get(), (uint32_t)vpn >> 12, 1);
-    if (page_table_ptr[PTE_INDEX((uint32_t)vpn)] != NULL)
-    {
-        page_table_ptr[PTE_INDEX((uint32_t)vpn)] = NULL;
-        cpu_invplg(vpn);
-    } 
+    if ((virtual_address & 0xFFF) != 0) { return; }
+    uint32_t* page_table_ptr = (uint32_t*)
+            ((uint32_t)PAGE_TABLE_VIRTUAL_ADDRESS(PDE_INDEX(virtual_address)) & 0xfffff000);
 
+    pmm_mark_chunk_available(vaddr_to_paddr(virtual_address) >> 12, 1);
+    if (page_table_ptr[PTE_INDEX(virtual_address)] != NULL)
+    {
+        page_table_ptr[PTE_INDEX(virtual_address)] = NULL;
+        cpu_invplg((void *) virtual_address);
+    }
 }
 
-void*
-vmm_alloc_pages(void* vpn, uint32_t directory_flags, uint32_t table_flags, uint32_t counts)
+void *
+vmm_alloc_pages(uint32_t counts)
 {
-    void* pp = pmm_alloc_pages(counts);
-    if (pp == NULL_POINTER) {return NULL_POINTER;}
-
-    void *result = NULL_POINTER;
-
-    for (uint32_t i = 0; i < counts; ++i) {
-        void *p = NULL_POINTER;
-        if (i == 0)
-        {
-            result = vmm_map_page((uint32_t)vpn, (uint32_t)pp,
-                                  directory_flags, table_flags);
-            p = result;
-        } else {
-            p = vmm_map_page((uint32_t)vpn + (i<<12), (uint32_t)pp + (i<<12),
-                             directory_flags, table_flags);
-        }
-
-        if (!p) {
-            for (uint32_t j = 0; j < i; ++j) {
-                vmm_unmap_page(pp + j);
-            }
-            return NULL_POINTER;
-        }
-    }
-
-    pmm_mark_chunk_occupied(physical_memory_manager_instance_get(),
-                            ((uint32_t)pp) >> 12, counts);
-
-    return result;
-}
-
-void*
-vmm_map_pages(uint32_t virtual_address, uint32_t physical_address,
-              uint32_t directory_flags, uint32_t table_flags, uint32_t counts)
-{
-    void *p1 = NULL_POINTER;
-    void *p2 = NULL_POINTER;
-    for (uint32_t i = 0; i < counts; ++i) {
-        if (i==0)
-        {
-            p1 = vmm_map_page(virtual_address + (i<<12),
-                              physical_address + (i<<12),
-                              directory_flags, table_flags);
-        }
-        else
-        {
-            p2 = vmm_map_page(virtual_address + (i<<12),
-                              physical_address + (i<<12),
-                              directory_flags, table_flags);
-            if (p1==NULL_POINTER || p2==NULL_POINTER || p2!=(p1+(i<<12)))
-            {
-                return NULL_POINTER;
-            }
-        }
-    }
-
-    return (void *)p1;
+    uint32_t start = (uint32_t) pmm_alloc_pages(counts, 0);
+    return (void *) vmm_map_pages(start, start, counts);
 }

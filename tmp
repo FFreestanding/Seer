@@ -1,15 +1,15 @@
 lxos
-(gdb) p/x clb_pa
+(gdb) pm_mgr/x clb_pa
 $2 = 0x272000
-(gdb) p/x clb_pg_addr
+(gdb) pm_mgr/x clb_pg_addr
 $3 = 0xc4878000
 (gdb) x/16gx 0xc4878000
 0xc4878000:     0x0000000000010405      0x0000000000275080
 0xc4878010:     0x0000000000000000      0x0000000000000000
 
-(gdb) p/x fis_pa
+(gdb) pm_mgr/x fis_pa
 $4 = 0x273000
-(gdb) p/x fis_pg_addr
+(gdb) pm_mgr/x fis_pg_addr
 $5 = 0xc4879000
 
 (gdb) x/16gx 0xc4879000
@@ -24,13 +24,13 @@ $5 = 0xc4879000
 
 Seer
 
-(gdb) p/x clb_pa
+(gdb) pm_mgr/x clb_pa
 $1 = 0x241000
-(gdb) p/x clb_pg_addr
+(gdb) pm_mgr/x clb_pg_addr
 $2 = 0x241000
 
 
-(gdb) p/x fis_pa
+(gdb) pm_mgr/x fis_pa
 $3 = 0x242000
-(gdb) p/x fis_pg_addr
+(gdb) pm_mgr/x fis_pg_addr
 $4 = 0x242000
