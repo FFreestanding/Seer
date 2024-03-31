@@ -2,6 +2,7 @@
 #include <apic/acpi.h>
 #include <kernel_io/memory.h>
 #include <apic/rtc.h>
+#include "common.h"
 
 void _ioapic_init()
 {
@@ -10,7 +11,7 @@ void _ioapic_init()
     acpi_context* acpi_ctx = get_acpi_context_instance();
 
     uint8_t irq_rtc = 0;
-    _assert(irq_rtc = ioapic_get_irq(acpi_ctx, RTC_IRQ), "io apic redirect error (equal 0)");
+    ASSERT(irq_rtc = ioapic_get_irq(acpi_ctx, RTC_IRQ), "io apic redirect error (equal 0)");
     kernel_log(INFO, "irq rtc %u", irq_rtc);
     ioapic_redirect(irq_rtc, REDIRECT_RTC_TIMER_VECTOR, 0, IOAPIC_DELIVERY_MODE(IOAPIC_DELIVERY_MODE_FIXED));
 }

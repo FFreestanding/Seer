@@ -1,8 +1,11 @@
 #include <apic/timer.h>
 #include <apic/cpu.h>
-#include <kernel_io/heap.h>
+#include <kernel_io/valloc.h>
 #include <kernel_io/memory.h>
 #include <idt/interrupts.h>
+#include "common.h"
+#include "paging/pmm.h"
+#include <paging/vmm.h>
 
 
 void
@@ -56,18 +59,16 @@ get_timer_task_manager_instance()
 void
 timer_task_manager_init(timer_task_manager* ttm)
 {
-    _assert(
-        ttm->task_head = (timer_task*) kmalloc(sizeof(timer_task)),
-        "task_head init error"
-    );
+    ASSERT((ttm->task_head = (timer_task*) valloc(sizeof(timer_task)))!=NULL,
+        "task_head init error");
+//    ttm->task_head = vmm_alloc_page_entry();
     llist_init_head(&ttm->task_head->link);
 }
 
 uint8_t timer_run
 (uint32_t ticks, void (*task_caller)(void*), void* parameter_ptr, uint8_t task_is_periodic)
 {
-    timer_task* timer = (timer_task*)kmalloc(sizeof(timer_task));
-    kernel_log(INFO, "timer run");
+    timer_task* timer = (timer_task*)valloc(sizeof(timer_task));
     if (!timer) {return 0;};
 
     timer->counter = timer->deadline = ticks;
@@ -75,7 +76,7 @@ uint8_t timer_run
     timer->task_is_periodic = task_is_periodic;
     timer->parameter_ptr = parameter_ptr;
 
-    llist_append(get_timer_task_manager_instance()->task_head, &timer->link);
+    llist_append(&get_timer_task_manager_instance()->task_head->link, &timer->link);
 
     return 1;
 }
@@ -83,7 +84,7 @@ uint8_t timer_run
 void timer_run_second
 (uint32_t second, void (*task_caller)(void*), void* parameter_ptr, uint8_t task_is_periodic)
 {
-    _assert(
+    ASSERT(
         timer_run(get_timer_task_manager_instance()
                     ->setting_running_frequence*second,
                     task_caller, parameter_ptr, 1),
@@ -94,12 +95,12 @@ void timer_run_second
 void timer_run_ms
 (uint32_t millisecond, void (*task_caller)(void*), void* parameter_ptr, uint8_t task_is_periodic)
 {
-    _assert(
+    ASSERT(
         timer_run(get_timer_task_manager_instance()
                     ->setting_running_frequence*millisecond/1000,
                     task_caller, parameter_ptr, 1),
         "timer run error"
-    )
+    );
 }
 
 uint8_t

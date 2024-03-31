@@ -28,45 +28,32 @@ test_interrupt(){
 
 void
 test_heap_management(){
-    // test kmalloc & kfree
-    uint8_t** arr = (uint8_t**) kmalloc(10*sizeof(uint8_t*));
+    // test valloc & vfree
+    uint8_t** arr = (uint8_t**) valloc(10*sizeof(uint8_t*));
     for (uint32_t i = 0; i < 10; i++)
     {
-        arr[i] = (uint8_t*) kmalloc((i+1)*2);
+        arr[i] = (uint8_t*) valloc((i+1)*2);
     }
     for (uint32_t i = 0; i < 10; i++)
     {
-        if (!kfree(arr[i]))
-        {
-            kernel_log(WARN, "FREE ERROR %i", i);
-        }
+        vfree(arr[i]);
     }
     
-    uint8_t* big_ = kmalloc(8192);
+    uint8_t* big_ = valloc(8192);
     big_[0]=123;
     big_[1]=23;
     big_[2]=1;
     kernel_log(INFO, "%u, %u, %u", big_[0], big_[1], big_[2]);
-    if (!kfree(arr) || !kfree(big_))
-    {
-        kernel_log(WARN, "FREE ERROR arr big_");
-    }
+    vfree(arr);
+    vfree(big_);
+
     
-    uint8_t* bad1 = kmalloc(123);
-    uint8_t* bad2 = kmalloc(1);
+    uint8_t* bad1 = valloc(123);
+    uint8_t* bad2 = valloc(1);
     *((uint32_t*)(bad1-4))=0xc2343312UL;
-    if (!kfree(bad1) )
-    {
-        kernel_log(WARN, "FREE ERROR bad1");
-    }
-    if (!kfree(bad2-2))
-    {
-        kernel_log(WARN, "FREE ERROR bad2");
-    }
-    if (!kfree(bad2))
-    {
-        kernel_log(WARN, "FREE ERROR bad2 2");
-    }
+    vfree(bad1);
+    vfree(bad2-2);
+    vfree(bad2);
 }
 
 void 

@@ -1,6 +1,6 @@
 #include <device/pci/pci.h>
 #include <apic/apic.h>
-#include <kernel_io/heap.h>
+#include <kernel_io/valloc.h>
 
 static struct llist_header pci_devices;
 
@@ -40,7 +40,7 @@ pci_probe_device(int bus, int dev, int funct)
     pci_reg_t intr = pci_read_cspace(base, 0x3c);
     pci_reg_t class = pci_read_cspace(base, 0x8);
 
-    struct pci_device* device = kmalloc(sizeof(struct pci_device));
+    struct pci_device* device = valloc(sizeof(struct pci_device));
     *device = (struct pci_device){ .cspace_base = base,
             .class_info = class,
             .device_info = reg1,
@@ -292,7 +292,7 @@ void __prob_pci_device(struct pci_address *addr)
         addr->function = 0;
     }
 
-    struct pci_device *dev = (struct pci_device *) kmalloc(sizeof(struct pci_device));
+    struct pci_device *dev = (struct pci_device *) valloc(sizeof(struct pci_device));
     dev->address = *addr;
     dev->capabilities_pointer = 0;
     dev->class_code = pci_read_class_code(addr);

@@ -1,8 +1,10 @@
 #ifndef SEER_EXT2_H
 #define SEER_EXT2_H
 #include <stdint.h>
+#include <common.h>
 
 #define EXT2_SUPER_MAGIC 0xEF53
+#define BLOCK_COUNTS(byte_counts) CEIL(byte_counts, 512) //512=2^9
 
 struct ext2_superblock {
     uint32_t s_inodes_count;
@@ -57,22 +59,39 @@ struct ext2_superblock {
     // Other options
     uint32_t s_default_mount_options;
     uint32_t s_first_meta_bg;
-    // uint8_t unused[760]; // Unused - reserved for future revisions
+    uint8_t unused[760]; // Unused - reserved for future revisions
 };
 
-// Inode i_osd2 Structure
-// 96bit OS dependant structure.
-// Table 3.18. Inode i_osd2 Structure: Linux
 struct ext2_inode {
-    uint8_t l_i_frag;       // Fragment number
-    uint8_t l_i_fsize;      // Fragment size
-    uint16_t reserved1;     // Reserved (used for alignment and future expansion)
-    uint16_t l_i_uid_high;  // High 16-bits of the Owner UID
-    uint16_t l_i_gid_high;  // High 16-bits of the Owner GID
-    // uint32_t reserved2;     // Reserved (more alignment and future expansion)
+    uint16_t i_mode;
+    uint16_t i_uid;
+    uint32_t i_size;
+    uint32_t i_atime;
+    uint32_t i_ctime;
+    uint32_t i_mtime;
+    uint32_t i_dtime;
+    uint16_t i_gid;
+    uint16_t i_links_count;
+    uint32_t i_blocks;
+    uint32_t i_flags;
+    uint32_t i_osd1;
+    uint32_t i_block[15];
+    uint32_t i_generation;
+    uint32_t i_file_acl;
+    uint32_t i_dir_acl;
+    uint32_t i_faddr;
+    uint8_t i_osd2[12];
 };
 
-struct ext2_block_group_descriptor_table {
+struct ext2_directory_entry {
+    uint32_t inode;
+    uint32_t rec_len;
+    uint8_t name_len;
+    uint8_t file_type;
+    char *name
+};
+
+struct ext2_block_group_descriptor {
     uint32_t bg_block_bitmap;         // Block bitmap block
     uint32_t bg_inode_bitmap;         // Inode bitmap block
     uint32_t bg_inode_table;          // Inode table block
@@ -82,5 +101,32 @@ struct ext2_block_group_descriptor_table {
     uint16_t bg_pad;                  // Padding to word
     uint8_t  bg_reserved[12];         // Reserved space
 } __attribute__((packed));
+
+struct ext2_context {
+    char current_path[24];
+    uint32_t block_size;
+};
+
+void init_ext2_context(struct ext2_superblock *super_block);
+
+void ext2_read_block(uint32_t block_index, uint8_t *buffer);
+
+void ext2_write_block(uint32_t block_index, uint8_t *buffer);
+
+// block offset: 0 -> 0*512, 1 -> 1*512
+// counts: 1 -> 1*512, 2 -> 2*512
+void ext2_read_data(uint8_t *buffer, uint32_t block_offset, uint32_t counts);
+
+void ext2_write_data(uint8_t *buffer, uint32_t block_offset, uint32_t counts);
+
+void ext2_read_super_block(uint8_t *buffer);
+
+void ext2_read_block_group_descriptor(uint8_t *buffer);
+
+void ext2_app();
+
+void parse_ext2img();
+
+struct ext2_inode *first_inode_of_group(struct ext2_block_group_descriptor_table* desc_table);
 
 #endif

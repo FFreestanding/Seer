@@ -4,7 +4,7 @@
 #include <paging/pmm.h>
 #include <paging/page.h>
 #include <idt/interrupts.h>
-#include <kernel_io/heap.h>
+#include <kernel_io/valloc.h>
 #include <device/sata/sata.h>
 #include <device/sata/disk/ata.h>
 #include <device/sata/disk/scsi.h>
@@ -88,9 +88,8 @@ ahci_init()
     memory_set(&hba, 0, sizeof(hba));
 
 
-    hba.base = (hba_reg_t*)vmm_map_pages(PCI_BAR_ADDR_MM(bar6), PCI_BAR_ADDR_MM(bar6),
-                                         DEFAULT_PAGE_FLAGS, DEFAULT_PAGE_FLAGS, size/0x1000);
-        pmm_mark_chunk_occupied(physical_memory_manager_instance_get(), PCI_BAR_ADDR_MM(bar6)>>12, size/0x1000);
+    hba.base = (hba_reg_t*)vmm_map_pages(PCI_BAR_ADDR_MM(bar6), PCI_BAR_ADDR_MM(bar6), size/0x1000);
+    pmm_mark_chunk_occupied(PCI_BAR_ADDR_MM(bar6)>>12, size/0x1000);
 
 #ifdef DO_HBA_FULL_RESET
     // 重置HBA
@@ -120,7 +119,7 @@ ahci_init()
         }
 
         struct hba_port* port =
-                (struct hba_port*)kmalloc(sizeof(struct hba_port));
+                (struct hba_port*)valloc(sizeof(struct hba_port));
         hba_reg_t* port_regs =
                 (hba_reg_t*)(&hba.base[HBA_RPBASE + i * HBA_RPSIZE]);
 
@@ -131,20 +130,16 @@ ahci_init()
         if (!clbp) {
             // 每页最多4个命令队列
             clb_pa = (uintptr_t) pmm_alloc_page_entry();
-            clb_pg_addr = (uintptr_t) vmm_map_page(clb_pa, clb_pa,
-                                                   DEFAULT_PAGE_FLAGS, DEFAULT_PAGE_FLAGS);
-            pmm_mark_chunk_occupied(physical_memory_manager_instance_get(),
-                                    clb_pa>>12, 1);
+            clb_pg_addr = (uintptr_t) vmm_map_page(clb_pa, clb_pa);
+            pmm_mark_chunk_occupied(clb_pa>>12, 1);
             memory_set((uint8_t *) clb_pg_addr, 0, 0x1000);
         }
         if (!fisp) {
             // 每页最多16个FIS
             fis_pa = (uintptr_t) pmm_alloc_page_entry();
 
-            fis_pg_addr = (uintptr_t) vmm_map_page(fis_pa, fis_pa,
-                                                   DEFAULT_PAGE_FLAGS, DEFAULT_PAGE_FLAGS);
-            pmm_mark_chunk_occupied(physical_memory_manager_instance_get(),
-                                    fis_pa>>12, 1);
+            fis_pg_addr = (uintptr_t) vmm_map_page(fis_pa, fis_pa);
+            pmm_mark_chunk_occupied(fis_pa>>12, 1);
             memory_set((uint8_t *) fis_pg_addr, 0, 0x1000);
         }
 
@@ -287,7 +282,7 @@ hba_prepare_cmd(struct hba_port* port,
 
     // 构建命令头（Command Header）和命令表（Command Table）
     struct hba_cmdh* cmd_header = &port->cmdlst[slot];
-    struct hba_cmdt* cmd_table = kmalloc(sizeof(struct hba_cmdt));
+    struct hba_cmdt* cmd_table = valloc(sizeof(struct hba_cmdt));
 
     memory_set(cmd_header, 0, sizeof(*cmd_header));
 
@@ -320,13 +315,13 @@ ahci_init_device(struct hba_port* port)
     wait_until(!(port->regs[HBA_RPxTFD] & (HBA_PxTFD_BSY)));
 
     // 预备DMA接收缓存，用于存放HBA传回的数据
-    uint16_t* data_in = (uint16_t*)kmalloc(512);
+    uint16_t* data_in = (uint16_t*)valloc(512);
 
     int slot = hba_prepare_cmd(port, &cmd_table, &cmd_header, data_in, 512);
 
     // 清空任何待响应的中断
     port->regs[HBA_RPxIS] = 0;
-    port->device = kmalloc(sizeof(struct hba_device));
+    port->device = valloc(sizeof(struct hba_device));
 
     // 在命令表中构建命令FIS
     struct sata_reg_fis* cmd_fis = (struct sata_reg_fis*)cmd_table->command_fis;
@@ -410,14 +405,14 @@ ahci_init_device(struct hba_port* port)
     done:
     achi_register_ops(port);
 
-    kfree(data_in);
-    kfree(cmd_table);
+    vfree(data_in);
+    vfree(cmd_table);
 
     return 1;
 
     fail:
-    kfree(data_in);
-    kfree(cmd_table);
+    vfree(data_in);
+    vfree(cmd_table);
 
     return 0;
 }
@@ -426,7 +421,7 @@ int
 ahci_identify_device(struct hba_port* port)
 {
     // 用于重新识别设备（比如在热插拔的情况下）
-    kfree(port->device);
+    vfree(port->device);
     return ahci_init_device(port);
 }
 
@@ -490,7 +485,7 @@ get_ahci_device_context()
 }
 
 void
-ahci_isr(isr_param* p)
+ahci_isr(isr_param* pm_mgr)
 {
     kernel_log(INFO, "AHCI ISR");
 }
@@ -728,7 +723,7 @@ void probe_disk_info(struct ahci_port_registers* port_reg)
         kernel_log(ERROR, "ahci_try_send");
     }
 
-    struct ahci_device_info *info = kmalloc(sizeof(struct ahci_device_info));
+    struct ahci_device_info *info = valloc(sizeof(struct ahci_device_info));
     ahci_parse_dev_info(info, data);
     kernel_log(INFO, "=======================");
     kernel_log(INFO, "model:%s serial_num:%s", info->model, info->serial_num);

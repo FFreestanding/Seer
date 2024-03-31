@@ -47,28 +47,29 @@ $(BUILD_DIR)/$(OS_ISO): $(ISO_DIR) $(BIN_DIR)/$(OS_BIN) GRUB_TEMPLATE
 	cp $(BIN_DIR)/$(OS_BIN) $(ISO_BOOT_DIR)
 	grub-mkrescue -o $(BUILD_DIR)/$(OS_ISO) $(ISO_DIR)
 
-all-debug: clean $(BUILD_DIR)/$(OS_ISO)
+all: $(BUILD_DIR)/$(OS_ISO)
 	
 clean:
 	rm -rf $(BUILD_DIR)
 
-run: all-debug
+run: all
 	qemu-system-i386 -d cpu_reset -cdrom build/Seer.iso \
 		-no-shutdown -no-reboot \
 		-drive id=disk,file="/home/ffreestanding/Desktop/ext2/ext2.img",if=none \
 		-device ahci,id=ahci \
 		-device ide-hd,drive=disk,bus=ahci.0
 
-debug-qemu: all-debug
+debug-qemu: all
 	objcopy --only-keep-debug $(BIN_DIR)/$(OS_BIN) $(BUILD_DIR)/kernel.dbg
 	qemu-system-i386 -S -gdb tcp::9889 -d cpu_reset -cdrom build/Seer.iso \
-		-no-shutdown -no-reboot --trace "ahci_*" \
+		-no-shutdown -no-reboot \
 		-monitor telnet:127.0.0.1:55555,server,nowait \
-		-drive id=disk,file="/home/ffreestanding/Desktop/ext2/ext2fs.img",if=none,format=raw \
+		-drive id=disk,file="/home/ffreestanding/Desktop/ext2/ext2.img",if=none,format=raw \
  		-device ahci,id=ahci -device ide-hd,drive=disk,bus=ahci.0 &\
  	sleep 0.1
 	gnome-terminal -- telnet 127.0.0.1 55555
 	gdb -s $(BUILD_DIR)/kernel.dbg -ex "target remote localhost:9889"
+# --trace "ahci_*"
 
 
 

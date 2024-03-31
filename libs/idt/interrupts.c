@@ -11,12 +11,12 @@ interrupt_handler(isr_param* param) {
     static int i = 1;
     if (param->vector<=20)
     {
-        if (i==2) { while (1); }
+        if (i==3) { while (1); }
         kernel_log(WARN, "param->vector: %u, param->eip: %h, error code: %h", param->vector, param->eip, param->err_code);
         ++i;
+        while (1);
         printstack(param->registers.ebp, param->eip);
         --i;
-        
     }
 
     switch (param->vector)

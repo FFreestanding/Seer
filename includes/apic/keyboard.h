@@ -4,6 +4,7 @@
 #include <idt/interrupts.h>
 #include <kernel_io/memory.h>
 #include <stdatomic.h>
+#include <data_structure/kernel_atomic.h>
 /* Reference IBM Personal System 2 Model 80 Technical Reference */
 
 // Controller Status register
@@ -108,5 +109,24 @@ scan_code_buffer_manager_get();
 
 void 
 scan_code_buffer_manager_init(scan_code_buffer_manager* manager);
+
+#define KEY_BUFFER_SIZE 256
+struct keyboard_buffer_manager
+{
+    uint32_t write_pointer;
+    uint32_t read_pointer;
+    mutex_t lock;
+    uint8_t buffer[KEY_BUFFER_SIZE];
+};
+
+struct keyboard_buffer_manager *get_keyboard_buffer_manager();
+
+void init_keyboard_buffer_manager(struct keyboard_buffer_manager *keyboard_buffer_mgr);
+
+uint32_t write_keyboard_buffer_manager(struct keyboard_buffer_manager *mgr,
+                                    uint8_t *data, uint32_t len);
+
+uint32_t read_keyboard_buffer_manager(struct keyboard_buffer_manager *mgr,
+                                   uint8_t *data, uint32_t len);
 
 #endif // _KEYBOARD_H_

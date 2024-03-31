@@ -206,71 +206,71 @@ static inline void pci_write_config_space(const uint32_t *addr, const uint32_t d
 
 static inline uint16_t pci_read_vendor_id(const uint32_t *addr)
 {
-    struct pci_address *p = (struct pci_address *)addr;
-    p->reg = 0;
+    struct pci_address *pm_mgr = (struct pci_address *)addr;
+    pm_mgr->reg = 0;
     return (uint16_t)pci_read_config_space(addr);
 }
 
 static inline uint16_t pci_read_device_id(const uint32_t *addr)
 {
-    struct pci_address *p = (struct pci_address *)addr;
-    p->reg = 2;
+    struct pci_address *pm_mgr = (struct pci_address *)addr;
+    pm_mgr->reg = 2;
     return (uint16_t)pci_read_config_space(addr);
 }
 
 static inline uint16_t pci_read_command(const uint32_t *addr)
 {
-    struct pci_address *p = (struct pci_address *)addr;
-    p->reg = 4;
+    struct pci_address *pm_mgr = (struct pci_address *)addr;
+    pm_mgr->reg = 4;
     return (uint16_t)pci_read_config_space(addr);
 }
 
 static inline uint16_t pci_write_command(const uint32_t *addr, const uint16_t data)
 {
-    struct pci_address *p = (struct pci_address *)addr;
-    p->reg = 4;
+    struct pci_address *pm_mgr = (struct pci_address *)addr;
+    pm_mgr->reg = 4;
     pci_write_config_space(addr, (uint32_t)data);
 }
 
 static inline uint16_t pci_read_status(const uint32_t *addr)
 {
-    struct pci_address *p = (struct pci_address *)addr;
-    p->reg = 6;
+    struct pci_address *pm_mgr = (struct pci_address *)addr;
+    pm_mgr->reg = 6;
     return (uint16_t)pci_read_config_space(addr);
 }
 
 static inline uint32_t pci_read_class_code(const uint32_t *addr)
 {
-    struct pci_address *p = (struct pci_address *)addr;
-    p->reg = 8;
+    struct pci_address *pm_mgr = (struct pci_address *)addr;
+    pm_mgr->reg = 8;
     return (uint32_t)(pci_read_config_space(addr)>>8);
 }
 
 static inline uint8_t pci_read_header_type(const uint32_t *addr)
 {
-    struct pci_address *p = (struct pci_address *)addr;
-    p->reg = 0xe;
+    struct pci_address *pm_mgr = (struct pci_address *)addr;
+    pm_mgr->reg = 0xe;
     return (uint8_t)pci_read_config_space(addr);
 }
 
 static inline uint32_t pci_read_bar6(const uint32_t *addr)
 {
-    struct pci_address *p = (struct pci_address *)addr;
-    p->reg = 0x24;
+    struct pci_address *pm_mgr = (struct pci_address *)addr;
+    pm_mgr->reg = 0x24;
     return (uint32_t)pci_read_config_space(addr);
 }
 
 static inline void pci_write_bar6(const uint32_t *addr, const uint32_t data)
 {
-    struct pci_address *p = (struct pci_address *)addr;
-    p->reg = 0x24;
+    struct pci_address *pm_mgr = (struct pci_address *)addr;
+    pm_mgr->reg = 0x24;
     pci_write_config_space(addr, data);
 }
 
 static inline uint8_t pci_read_capabilities_pointer(const uint32_t *addr)
 {
-    struct pci_address *p = (struct pci_address *)addr;
-    p->reg = 0x34;
+    struct pci_address *pm_mgr = (struct pci_address *)addr;
+    pm_mgr->reg = 0x34;
     return (uint8_t)pci_read_config_space(addr);
 }
 

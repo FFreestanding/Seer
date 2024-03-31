@@ -4,9 +4,10 @@
 #include <data_structure/llist.h>
 #include <apic/rtc.h>
 #include <apic/apic.h>
-#include <kernel_io/heap.h>
+#include <kernel_io/valloc.h>
 #include <kernel_io/memory.h>
 #include <idt/interrupts.h>
+#include "common.h"
 
 typedef struct 
 {
@@ -78,7 +79,6 @@ temp_apic_timer_routine(isr_param* p)
     kernel_log(WARN, "apic_frequence %h", ttm->apic_frequence);
     
     rtc_disable_timer();
-
 }
 
 static void
@@ -87,7 +87,7 @@ timer_task_list_update(isr_param* param)
     timer_task* pos, *next;
     timer_task* head = get_timer_task_manager_instance()->task_head;
 
-    _assert(head, "timer_task head null");
+    ASSERT(head, "timer_task head null");
     llist_for_each(pos, next, &head->link, link)
     {
         if (--pos->counter)
@@ -106,7 +106,6 @@ timer_task_list_update(isr_param* param)
         else
         {
             llist_delete(&pos->link);
-            _assert(kfree(pos),"task list update error");
         }
     }
 }

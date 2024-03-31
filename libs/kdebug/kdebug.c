@@ -2,27 +2,27 @@
 #include <kernel_io/memory.h>
 #include <paging/vmm.h>
 #include <paging/page.h>
-#include <kernel_io/heap.h>
+#include <kernel_io/valloc.h>
+#include "common.h"
 
 static uint32_t* debug_info_ptr;
 
 void
 save_debug_info(uint32_t mod_address)
 {
-    mod_address=*(uint32_t*)mod_address;
-    vmm_map_page(mod_address, mod_address, DEFAULT_PAGE_FLAGS, DEFAULT_PAGE_FLAGS);
-
+    uint32_t *tmp = (uint32_t *) mod_address;
+    mod_address = *tmp;
+    ASSERT(mod_address == vmm_map_page(mod_address, mod_address),
+           "save_debug_info");
     uint32_t info_bytes_number = *(uint32_t*)mod_address;
-    for (uint32_t i = 1; i <= (info_bytes_number>>12); i++)
-    {
-        vmm_map_page((uint32_t)((uint8_t*)mod_address+(i<<12)), (uint32_t)((uint8_t*)mod_address+(i<<12)), DEFAULT_PAGE_FLAGS, DEFAULT_PAGE_FLAGS);
-    }
+    uint32_t *src = vmm_map_pages(mod_address, mod_address,
+                                  (info_bytes_number+0xfff)>>12);
     
-    debug_info_ptr = (uint32_t*)kmalloc(info_bytes_number);
-    memory_copy_fast((uint32_t*)mod_address+1, debug_info_ptr, info_bytes_number/4);
-    for (uint32_t i = 0; i <= (info_bytes_number>>12); i++)
+    debug_info_ptr = (uint32_t*)vmm_alloc_pages((info_bytes_number+0xfff)>>12);
+    memory_copy_fast(src+1, debug_info_ptr, info_bytes_number/4);
+    for (uint32_t i = 0; i < ((info_bytes_number+0xfff)>>12); i++)
     {
-        vmm_unmap_page((uint32_t)((uint8_t*)mod_address+(i<<12)));
+        vmm_unmap_page((uint32_t)src + (i << 12));
     }
 }
 
@@ -34,7 +34,6 @@ printstack(uint32_t ebp, uint32_t eip)
         find_debug_info(eip);
         eip=*((uint32_t*)ebp+1);
     } while (ebp = *(uint32_t*)ebp);
-    
 }
 
 uint8_t 

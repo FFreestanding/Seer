@@ -82,7 +82,7 @@ i
 0x43
 o
 0x44
-p
+pm_mgr
 0x4d
 [
 0x54
@@ -167,6 +167,56 @@ DOWN
 */
 
 
+
+void init_keyboard_buffer_manager(struct keyboard_buffer_manager *keyboard_buffer_mgr)
+{
+    keyboard_buffer_mgr->write_pointer=0;
+    keyboard_buffer_mgr->read_pointer=0;
+    mutex_init(&keyboard_buffer_mgr->lock);
+}
+
+struct keyboard_buffer_manager *get_keyboard_buffer_manager()
+{
+    static struct keyboard_buffer_manager keyboard_buffer_mgr;
+    return &keyboard_buffer_mgr;
+}
+
+uint32_t write_keyboard_buffer_manager(struct keyboard_buffer_manager *mgr,
+                                   uint8_t *data, uint32_t len)
+{
+    uint32_t num = 0;
+    mutex_lock(&mgr->lock);
+    for (int i = 0; i < len; ++i) {
+        if ((mgr->write_pointer + 1)%KEY_BUFFER_SIZE == mgr->read_pointer)
+        {
+            mgr->write_pointer = mgr->read_pointer = 0;
+        }
+        memory_copy(data+i, mgr->buffer + mgr->write_pointer, 1);
+        mgr->write_pointer = (mgr->write_pointer + 1)%KEY_BUFFER_SIZE;
+        ++num;
+    }
+    mutex_unlock(&mgr->lock);
+    return num;
+}
+
+uint32_t read_keyboard_buffer_manager(struct keyboard_buffer_manager *mgr,
+                                  uint8_t *data, uint32_t len)
+{
+    uint32_t num = 0;
+    mutex_lock(&mgr->lock);
+    for (int i = 0;
+        i < len && (mgr->read_pointer%KEY_BUFFER_SIZE!=mgr->write_pointer);
+        ++i) {
+//        kernel_log(INFO, "read[%s]", mgr->buffer + mgr->read_pointer);
+        if (0==*(mgr->buffer + mgr->read_pointer)){ mutex_unlock(&mgr->lock);return num;}
+        memory_copy(mgr->buffer + mgr->read_pointer, data + i, len);
+        mgr->read_pointer = (mgr->read_pointer + 1)%KEY_BUFFER_SIZE;
+        ++num;
+    }
+    mutex_unlock(&mgr->lock);
+    return num;
+}
+
 static uint8_t scancode_set2[] = {
     0,0,0,0, 0,0,0,0, 0,0,0,0, 0,'  ','`',0,//0x0-0xf
     0,0,0,0, 0,'q','1',0, 0,0,'z','s', 'a','w','2',0, //0x10-0x1f
@@ -223,7 +273,8 @@ ps2_keyboard_routine(isr_param* param)
             return;
         }
     }
-    
+
+    struct keyboard_buffer_manager *mgr = get_keyboard_buffer_manager();
     mode = io_inb(PS2_DEVICE_REGISTER);
     io_delay(300);
 
@@ -296,10 +347,12 @@ ps2_keyboard_routine(isr_param* param)
         default:
             if (capslock_down && scancode_set2[mode] >= 'a' && scancode_set2[mode] <= 'z' || shift_down)
             {
+                write_keyboard_buffer_manager(mgr, &scancode_capslock_or_shift[mode], 1);
                 kprintf("%c", scancode_capslock_or_shift[mode]);
             }
             else
             {
+                write_keyboard_buffer_manager(mgr, &scancode_set2[mode], 1);
                 kprintf("%c", scancode_set2[mode]);
             }
             break;
@@ -316,7 +369,7 @@ _ps2_controller_init()
     acpi_context* ac = get_acpi_context_instance();
     if (ac->fadt.creator_revision > 1)
     {
-        _assert(ac->fadt.iapc_boot_arch & IAPC_ARCH_8042, 
+        ASSERT(ac->fadt.iapc_boot_arch & IAPC_ARCH_8042,
                 "No 8042 detected.");
         kernel_log(WARN, "APIC version > v1");
     }
@@ -338,10 +391,10 @@ _ps2_controller_init()
     io_outb(PS2_DEVICE_REGISTER, result&0xff);
     // Perform Controller Self Test
     result = ps2_send_controller_cmd(0xaa);
-    _assert(result==0x55, "Perform Controller Self Test ERROR");
+    ASSERT(result==0x55, "Perform Controller Self Test ERROR");
     // Perform Interface Tests
 //    kernel_log(INFO, "%h", ps2_send_controller_cmd(0xab));
-    _assert(ps2_send_controller_cmd(0xab)==0, "Perform Interface Tests ERROR");
+    ASSERT(ps2_send_controller_cmd(0xab)==0, "Perform Interface Tests ERROR");
 
     // Enable Keyboard
     ps2_send_cmd_only(PS2_CONTROLLER_REGISTER, 0xae);
@@ -353,6 +406,7 @@ _ps2_controller_init()
     scan_code_buffer_manager_init(scan_code_buffer_manager_get());
     interrupt_routine_subscribe(PS2_KBD_REDIRECT_VECTOR, ps2_keyboard_routine);
 
+    init_keyboard_buffer_manager(get_keyboard_buffer_manager());
     ioapic_redirect(
         ioapic_get_irq(get_acpi_context_instance(), PS2_KBD_IRQ),
         PS2_KBD_REDIRECT_VECTOR,

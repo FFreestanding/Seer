@@ -2,13 +2,14 @@
 #include <kernel_io/memory.h>
 #include <apic/tpp.h>
 #include <apic/svr.h>
+#include "common.h"
 
 uint8_t _apic_init()
 {
     disable_interrupts();
 
     // ensure that the APIC exits
-    _assert(_cpu_has_apic(), "No APIC detected!")
+    ASSERT(_cpu_has_apic(), "No APIC detected!");
 
     // disable 8259 PIC
     // ref: https://wiki.osdev.org/8259_PIC

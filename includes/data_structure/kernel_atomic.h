@@ -3,8 +3,26 @@
 
 #include <stdatomic.h>
 
-// Reference: https://blog.csdn.net/cp3alai/article/details/130137958
+typedef struct mutex_t {
+    _Atomic unsigned int counter;
+} mutex_t;
 
-void test_atomic();
+static inline void mutex_init(mutex_t *mutex) {
+    mutex->counter = ATOMIC_VAR_INIT(1);
+}
+
+static inline unsigned int mutex_on_hold(mutex_t *mutex) {
+    return !atomic_load(&mutex->counter);
+}
+
+static inline void mutex_lock(mutex_t *mutex) {
+    while (!atomic_load(&mutex->counter));
+    atomic_fetch_sub(&mutex->counter, 1);
+}
+
+static inline void mutex_unlock(mutex_t *mutex) {
+    atomic_fetch_add(&mutex->counter, 1);
+}
+
 
 #endif

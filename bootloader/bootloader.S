@@ -2,7 +2,7 @@
 #include <boot/multiboot.h>
 
 #define MULTIBOOT_FLAGS MULTIBOOT_PAGE_ALIGN | MULTIBOOT_MEMORY_INFO
-//6=1+5, 1 PDE, 5 PTEs, 4*1024=4K
+//6=1+5, 1 PageDirectory, 5 PageTables, 4*1024=4K
 #define PAGE_TABLE_SIZE    6*(4*1024)
 
 .section .multiboot
