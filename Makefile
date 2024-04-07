@@ -69,8 +69,3 @@ debug-qemu: all
  	sleep 0.1
 	gnome-terminal -- telnet 127.0.0.1 55555
 	gdb -s $(BUILD_DIR)/kernel.dbg -ex "target remote localhost:9889"
-# --trace "ahci_*"
-
-
-
-

@@ -105,3 +105,18 @@ kernel_bitset_get_one_bit(kbitset* k, uint32_t index)
     uint8_t bit_offset = index % 8;
     return (byte>>bit_offset)&0b1;
 }
+
+uint32_t find_unset_bit_index(kbitset *k)
+{
+    uint32_t i = 0;
+    while (i < k->bitset_length)
+    {
+        if(kernel_bitset_get_one_bit(k, i)==0)
+        {
+            kernel_bitset_set_one_bit(k, i);
+            return i;
+        }
+        ++i;
+    }
+    return 0;
+}

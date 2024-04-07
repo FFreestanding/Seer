@@ -186,6 +186,7 @@ uint32_t write_keyboard_buffer_manager(struct keyboard_buffer_manager *mgr,
 {
     uint32_t num = 0;
     mutex_lock(&mgr->lock);
+    if (*data == 0x0) { mutex_unlock(&mgr->lock); return 0; }
     for (int i = 0; i < len; ++i) {
         if ((mgr->write_pointer + 1)%KEY_BUFFER_SIZE == mgr->read_pointer)
         {
@@ -207,7 +208,6 @@ uint32_t read_keyboard_buffer_manager(struct keyboard_buffer_manager *mgr,
     for (int i = 0;
         i < len && (mgr->read_pointer%KEY_BUFFER_SIZE!=mgr->write_pointer);
         ++i) {
-//        kernel_log(INFO, "read[%s]", mgr->buffer + mgr->read_pointer);
         if (0==*(mgr->buffer + mgr->read_pointer)){ mutex_unlock(&mgr->lock);return num;}
         memory_copy(mgr->buffer + mgr->read_pointer, data + i, len);
         mgr->read_pointer = (mgr->read_pointer + 1)%KEY_BUFFER_SIZE;
@@ -220,7 +220,7 @@ uint32_t read_keyboard_buffer_manager(struct keyboard_buffer_manager *mgr,
 static uint8_t scancode_set2[] = {
     0,0,0,0, 0,0,0,0, 0,0,0,0, 0,'  ','`',0,//0x0-0xf
     0,0,0,0, 0,'q','1',0, 0,0,'z','s', 'a','w','2',0, //0x10-0x1f
-    0,'c','x','d', 'e','4','3',0, 0,0,'v','f', 't','r','5',0, //0x20-0x2f
+    0,'c','x','d', 'e','4','3',0, 0,' ','v','f', 't','r','5',0, //0x20-0x2f
     0,'n','b','h', 'g','y','6',0, 0,0,'m','j', 'u','7','8',0, //0x30-0x3f
     0,',','k','i', 'o','0','9',0, 0,'.','/','l', ';','p','-',0, //0x40-0x4f
     0,0,'\'',0, '[','=',0,0, 0,0,'\n',']', 0,'\\',0,0,//0x50-0x5f
@@ -348,11 +348,13 @@ ps2_keyboard_routine(isr_param* param)
             if (capslock_down && scancode_set2[mode] >= 'a' && scancode_set2[mode] <= 'z' || shift_down)
             {
                 write_keyboard_buffer_manager(mgr, &scancode_capslock_or_shift[mode], 1);
+//                kernel_log(INFO, "\n[%h]", scancode_capslock_or_shift[mode]);
                 kprintf("%c", scancode_capslock_or_shift[mode]);
             }
             else
             {
                 write_keyboard_buffer_manager(mgr, &scancode_set2[mode], 1);
+//                kernel_log(INFO, "\n[%c]", scancode_set2[mode]);
                 kprintf("%c", scancode_set2[mode]);
             }
             break;
