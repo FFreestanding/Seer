@@ -20,6 +20,7 @@ get_vga_manager_instance()
 void
 vga_putchar(VGA_Manager* vga_manager, char vga_character)
 {
+    if (vga_character==0){ return; }
     switch (vga_character)
     {
     case '\t':

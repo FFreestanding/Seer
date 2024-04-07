@@ -60,12 +60,9 @@ struct cake *new_cake(struct cake_pile* pile)
     c->next_free = 0;
     ++pile->cakes_count;
 
-    kernel_log(INFO, "Before pile->pieces_per_cake-1: %u", pile->pieces_per_cake-1);
     for (uint32_t i = 0; i < pile->pieces_per_cake-1; ++i) {
         c->free_list[i] = (int32_t) i + 1;
     }
-    kernel_log(INFO, "After pile->pieces_per_cake-1: %u", pile->pieces_per_cake-1);
-    kernel_log(INFO, "Pass init free_list");
 
     c->free_list[pile->pieces_per_cake] = FREE_LIST_END;
     llist_append(&pile->free, &c->other_cakes);

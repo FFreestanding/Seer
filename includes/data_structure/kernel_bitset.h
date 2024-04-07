@@ -27,4 +27,6 @@ kernel_bitset_unset_chunk(kbitset* k, uint32_t start_index, uint32_t length);
 uint32_t
 kernel_bitset_get_one_bit(kbitset* k, uint32_t index);
 
+uint32_t find_unset_bit_index(kbitset *k);
+
 #endif
